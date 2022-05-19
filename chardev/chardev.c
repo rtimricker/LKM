@@ -29,7 +29,6 @@ MODULE_DESCRIPTION("A sample character driver");
 
 #include "chardev.h"
 #define SUCCESS 0
-#define DEVICE_NAME "char_dev"
 #define BUF_LEN 80
 
 /* 
@@ -272,7 +271,7 @@ int init_module()
 	/* 
 	 * Register the character device (atleast try) 
 	 */
-	ret_val = register_chrdev(MAJOR_NUM, DEVICE_NAME, &Fops);
+	ret_val = register_chrdev(MAJOR_NUM, DEVICE_FILE_NAME, &Fops);
 
 	/* 
 	 * Negative values signify an error 
@@ -306,8 +305,8 @@ void cleanup_module()
 	/* 
 	 * Unregister the device 
 	 */
-	//ret = unregister_chrdev(MAJOR_NUM, DEVICE_NAME);
-	unregister_chrdev(MAJOR_NUM, DEVICE_NAME);
+	//ret = unregister_chrdev(MAJOR_NUM, DEVICE_FILE_NAME);
+	unregister_chrdev(MAJOR_NUM, DEVICE_FILE_NAME);
 
 	/* 
 	 * If there's an error, report it 
