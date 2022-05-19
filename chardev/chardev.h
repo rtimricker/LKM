@@ -62,6 +62,6 @@
 /* 
  * The name of the device file 
  */
-#define DEVICE_FILE_NAME "char_dev"
+#define DEVICE_FILE_NAME "/dev/char_dev"
 
 #endif
