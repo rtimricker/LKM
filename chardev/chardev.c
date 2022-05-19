@@ -11,14 +11,14 @@
 
 #include <linux/kernel.h>       /* We're doing kernel work */
 #include <linux/module.h>       /* Specifically, a module */
-#include <linux/init.h>
+//#include <linux/init.h>
 #include <linux/fs.h>
-#include <linux/aio.h>
-#include <linux/vmalloc.h>
-#include <asm/uaccess.h>        /* for get_user and put_user */
+//#include <linux/aio.h>
+//#include <linux/vmalloc.h>
+//#include <asm/uaccess.h>        /* for get_user and put_user */
  
-#include <linux/cdev.h>
-#include <linux/device.h>
+//#include <linux/cdev.h>
+//#include <linux/device.h>
 #include <linux/raw.h>
  
 #endif
