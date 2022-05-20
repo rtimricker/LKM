@@ -1,5 +1,6 @@
 #CC = clang++
-CC = g++
+#CC = g++
+CC = gcc
 obj-m = chardev.o
  
 PWD := $(CURDIR) 
@@ -16,4 +17,7 @@ remove:
 
 insert:
 	sudo insmod chardev.ko
+
+node:
+	sudo mknod /dev/char_dev c 100 0
 

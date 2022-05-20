@@ -653,6 +653,7 @@ deps_/home/timr/LKM/chardev/chardev.o := \
     $(wildcard include/config/MODULES_USE_ELF_REL) \
     $(wildcard include/config/MODULES_USE_ELF_RELA) \
   arch/x86/include/asm/orc_types.h \
+  include/generated/uapi/linux/version.h \
   include/linux/fs.h \
     $(wildcard include/config/READ_ONLY_THP_FOR_FS) \
     $(wildcard include/config/FS_POSIX_ACL) \
@@ -874,6 +875,13 @@ deps_/home/timr/LKM/chardev/chardev.o := \
   include/uapi/linux/quota.h \
   include/linux/nfs_fs_i.h \
   include/uapi/linux/raw.h \
+  include/linux/utsname.h \
+    $(wildcard include/config/UTS_NS) \
+    $(wildcard include/config/PROC_SYSCTL) \
+  include/linux/nsproxy.h \
+  include/linux/ns_common.h \
+  include/uapi/linux/utsname.h \
+  include/generated/utsrelease.h \
   /home/timr/LKM/chardev/chardev.h \
 
 /home/timr/LKM/chardev/chardev.o: $(deps_/home/timr/LKM/chardev/chardev.o)

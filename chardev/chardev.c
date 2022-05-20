@@ -11,6 +11,7 @@
 
 #include <linux/kernel.h>       /* We're doing kernel work */
 #include <linux/module.h>       /* Specifically, a module */
+#include <linux/version.h>
 //#include <linux/init.h>
 #include <linux/fs.h>
 //#include <linux/aio.h>
@@ -20,6 +21,10 @@
 //#include <linux/cdev.h>
 //#include <linux/device.h>
 #include <linux/raw.h>
+#include <linux/utsname.h>
+#include <generated/utsrelease.h>
+//#include <asm/current.h>
+#include <linux/sched.h>
  
 #endif
 
@@ -93,8 +98,7 @@ static int device_release(struct inode *inode, struct file *file)
  * device file attempts to read from it.
  */
 static ssize_t device_read(struct file *file,	/* see include/linux/fs.h   */
-			   char __user * buffer,	/* buffer to be
-							 * filled with data */
+			   char __user * buffer,	/* buffer to be filled with data */
 			   size_t length,	/* length of the buffer     */
 			   loff_t * offset)
 {
@@ -148,13 +152,15 @@ static ssize_t device_read(struct file *file,	/* see include/linux/fs.h   */
  */
 static ssize_t
 device_write(struct file *file,
-	     const char __user * buffer, size_t length, loff_t * offset)
+	     const char __user * buffer, 
+		 size_t length, 
+		 loff_t * offset)
 {
 	int i;
 
-#ifdef DEBUG
-	printk(KERN_INFO "device_write(%p,%s,%d)", file, buffer, length);
-#endif
+//#ifdef DEBUG
+	printk(KERN_INFO "device_write(%p,%s,%ld)", file, buffer, length);
+//#endif
 
 	for (i = 0; i < length && i < BUF_LEN; i++)
 		get_user(Message[i], buffer + i);
@@ -165,6 +171,102 @@ device_write(struct file *file,
 	 * Again, return the number of input characters used 
 	 */
 	return i;
+}
+
+/* Extra driver entry points. */
+
+loff_t device_llseek (struct file * file, 
+                    loff_t loff, int val)
+{
+  printk(KERN_INFO "device_llseek(%p)\n", file);
+  return 0;
+}
+
+//ssize_t (*read_iter) (struct kiocb *, struct iov_iter *, loff_t);
+ssize_t device_read_iter (struct kiocb * kiocb, 
+                          struct iov_iter * iov_iter)
+{
+  printk(KERN_INFO "device_read_iter()\n");
+  return 0;
+}
+
+//ssize_t (*write_iter) (struct kiocb *, struct iov_iter *, loff_t);
+ssize_t device_write_iter (struct kiocb * kiocb, 
+                          struct iov_iter * iov_iter)
+{
+  printk(KERN_INFO "device_write_iter()\n");
+  return 0;
+}
+
+int device_iopoll (struct kiocb * kiocb, 
+                   bool spin)
+{
+  printk(KERN_INFO "device_iopoll()\n");
+  return 0;
+}
+
+int device_iterate (struct file * file, 
+                    struct dir_context * dir_context)
+{
+  printk(KERN_INFO "device_iterate()\n");
+  return 0;
+}
+
+int device_iterate_shared (struct file * file, 
+                    struct dir_context * dir_context)
+{
+  printk(KERN_INFO "device_iterate_shared()\n");
+  return 0;
+}
+
+int device_fsync (struct file * file, loff_t begin_loff, loff_t end_loff, int datasync)
+{
+  printk(KERN_INFO "device_fsync()\n");
+  return 0;
+}
+
+__poll_t device_poll (struct file * file, 
+                struct poll_table_struct * poll_table)
+{
+  printk(KERN_INFO "device_poll(%p)\n", file);
+  return 0;
+}
+
+int device_mmap (struct file * file, 
+                struct vm_area_struct * vm_area)
+{
+  printk(KERN_INFO "device_mmap(%p)\n", file);
+  return 0;
+}
+
+ssize_t device_aio_read (struct kiocb * kiocb, 
+                        const struct iovec * iovec, 
+                        unsigned long val, 
+                        loff_t loff)
+{
+  printk(KERN_INFO "device_aio_read()\n");
+  return 0;
+}
+ 
+ssize_t device_aio_write (struct kiocb * kiocb, 
+                          const struct iovec * iovec, 
+                          unsigned long val, 
+                          loff_t loff)
+{
+  printk(KERN_INFO "device_aio_write\n");
+  return 0;
+}
+
+int device_flush (struct file * file, fl_owner_t id)
+{
+  printk(KERN_INFO "device_flush(%p)\n", file);
+  return 0;
+}
+
+int device_fasync (int val, struct file * file, int val1)
+{
+  printk(KERN_INFO "device_fasync()\n");
+  return 0;
 }
 
 /* 
@@ -211,7 +313,7 @@ long device_unlocked_ioctl (struct file * file,
 		get_user(ch, temp);
 		for (i = 0; ch && i < BUF_LEN; i++, temp++) {
 			get_user(ch, temp);
-                }
+         }
 
 		device_write(file, (char *)ioctl_param, i, 0);
 		break;
@@ -254,12 +356,24 @@ long device_unlocked_ioctl (struct file * file,
  * init_module. NULL is for unimplemented functions. 
  */
 struct file_operations Fops = {
+	.owner = THIS_MODULE,
+	.open = device_open,
 	.read = device_read,
 	.write = device_write,
-/*	.ioctl = device_ioctl, */
-        .unlocked_ioctl = device_unlocked_ioctl,
-	.open = device_open,
+	.llseek = device_llseek,
 	.release = device_release,	/* a.k.a. close */
+
+	.read_iter = device_read_iter,
+	.write_iter = device_write_iter,
+	.unlocked_ioctl = device_unlocked_ioctl,
+	.flush = device_flush,
+	.iopoll = device_iopoll,
+	.iterate = device_iterate,
+	.iterate_shared = device_iterate_shared,
+	.poll = device_poll, 
+	.mmap = device_mmap,
+	.fsync = device_fsync,
+	.fasync = device_fasync,
 };
 
 /* 
@@ -282,6 +396,17 @@ int init_module()
 		return ret_val;
 	}
 
+	printk(KERN_INFO "KERNELVERSION: CURRENT Kernel %s\n", UTS_RELEASE);
+#if 0
+	#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 10)
+		printk(KERN_INFO "KERNELVERSION: OLD Kernel %s\n", UTS_RELEASE);
+	#elif LINUX_VERSION_CODE <= KERNEL_VERSION(4, 10, 0)
+		printk(KERN_INFO "KERNELVERSION: NEW Kernel %s\n", UTS_RELEASE);
+	#else
+		printk(KERN_INFO "KERNELVERSION: CURRENT Kernel %s\n", UTS_RELEASE);
+	#endif
+#endif
+
 	printk(KERN_INFO "%s The major device number is %d.\n",
 	       "Registration is a success", MAJOR_NUM);
 	printk(KERN_INFO "If you want to talk to the device driver,\n");
@@ -300,17 +425,8 @@ int init_module()
  */
 void cleanup_module()
 {
-	//int ret;
-
 	/* 
 	 * Unregister the device 
 	 */
-	//ret = unregister_chrdev(MAJOR_NUM, DEVICE_FILE_NAME);
 	unregister_chrdev(MAJOR_NUM, DEVICE_FILE_NAME);
-
-	/* 
-	 * If there's an error, report it 
-	 */
-	//if (ret < 0)
-	//	printk(KERN_ALERT "Error: unregister_chrdev: %d\n", ret);
 }
