@@ -80,9 +80,9 @@ static int device_open(struct inode *inode, struct file *file)
 
 static int device_release(struct inode *inode, struct file *file)
 {
-#ifdef DEBUG
+//#ifdef DEBUG
 	printk(KERN_INFO "device_release(%p,%p)\n", inode, file);
-#endif
+//#endif
 
 	/* 
 	 * We're now ready for our next caller 
@@ -107,9 +107,9 @@ static ssize_t device_read(struct file *file,	/* see include/linux/fs.h   */
 	 */
 	int bytes_read = 0;
 
-#ifdef DEBUG
-	printk(KERN_INFO "device_read(%p,%p,%d)\n", file, buffer, length);
-#endif
+//#ifdef DEBUG
+	printk(KERN_INFO "device_read(%p,%p,%ld)\n", file, buffer, length);
+//#endif
 
 	/* 
 	 * If we're at the end of the message, return 0
@@ -135,9 +135,9 @@ static ssize_t device_read(struct file *file,	/* see include/linux/fs.h   */
 		bytes_read++;
 	}
 
-#ifdef DEBUG
-	printk(KERN_INFO "Read %d bytes, %d left\n", bytes_read, length);
-#endif
+//#ifdef DEBUG
+	printk(KERN_INFO "Read %d bytes, %ld left\n", bytes_read, length);
+//#endif
 
 	/* 
 	 * Read functions are supposed to return the number
