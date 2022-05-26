@@ -9,142 +9,135 @@
 #include <asm/uaccess.h>	/* for get_user and put_user */
 #else
 
+#include <linux/mutex.h> // mutex locks to provide concurrency protection
 #include <linux/kernel.h>       /* We're doing kernel work */
 #include <linux/module.h>       /* Specifically, a module */
 #include <linux/version.h>
-//#include <linux/init.h>
+#include <linux/init.h>
 #include <linux/fs.h>
 //#include <linux/aio.h>
 //#include <linux/vmalloc.h>
 //#include <asm/uaccess.h>        /* for get_user and put_user */
  
-//#include <linux/cdev.h>
-//#include <linux/device.h>
+#include <linux/cdev.h>
+#include <linux/device.h>
 #include <linux/raw.h>
 #include <linux/utsname.h>
 #include <generated/utsrelease.h>
 //#include <asm/current.h>
 #include <linux/sched.h>
+#include <linux/delay.h> 
  
+#include "chardev.h"
+
 #endif
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Roger Tim Ricker");
 MODULE_DESCRIPTION("A sample character driver");
 
-#include "chardev.h"
 #define SUCCESS 0
 #define BUF_LEN 80
 
-/* 
- * Is the device open right now? Used to prevent
- * concurent access into the same device 
- */
-static int Device_Open = 0;
-
-/* 
- * The message the device will give when asked 
- */
+#define CLASS_NAME "mod" /// The device class -- this is a character device
+static int majorNumber; /// Stores the device number -- determined automatically
+//static char message[256] = {0}; /// Memory for the string that is passed from userspace
+//static short size_of_message; /// Used to remember the size of the string stored
+static struct class* chardrvClass = NULL; // The device-driver class struct pointer
+static struct device* chardrvDevice = NULL; // The device-driver device struct pointer
+static DEFINE_MUTEX(char_mutex); // declare mutex lock
 static char Message[BUF_LEN];
-
-/* 
- * How far did the process reading the message get?
- * Useful if the message is larger than the size of the
- * buffer we get to fill in device_read. 
- */
 static char *Message_Ptr;
+/*  Prototypes - this would normally go in a .h file */ 
+static int device_open(struct inode *, struct file *); 
+static int device_release(struct inode *, struct file *); 
+static ssize_t device_read(struct file *, char __user *, size_t, loff_t *); 
+static ssize_t device_write(struct file *, const char __user *, size_t, loff_t *); 
 
-/* 
- * This is called whenever a process attempts to open the device file 
- */
-static int device_open(struct inode *inode, struct file *file)
+
+static int device_open( struct inode *inode, struct file  *filp)
 {
 #ifdef DEBUG
 	printk(KERN_INFO "device_open(%p)\n", file);
 #endif
+	device_ch_t* ch = NULL;
 
-	/* 
-	 * We don't want to talk to two processes at the same time 
-	 */
-	if (Device_Open)
-		return -EBUSY;
+    printk (KERN_INFO "device_open(0x%p, 0x%p)\n", inode, filp);
 
-	Device_Open++;
-	/*
-	 * Initialize the message 
-	 */
-	Message_Ptr = Message;
-	try_module_get(THIS_MODULE);
-	return SUCCESS;
+    filp->private_data = ch = container_of(inode->i_cdev, device_ch_t, cdev);
+
+    return SUCCESS;
 }
 
-static int device_release(struct inode *inode, struct file *file)
-{
-//#ifdef DEBUG
-	printk(KERN_INFO "device_release(%p,%p)\n", inode, file);
-//#endif
-
-	/* 
-	 * We're now ready for our next caller 
-	 */
-	Device_Open--;
-
-	module_put(THIS_MODULE);
-	return SUCCESS;
-}
-
-/* 
- * This function is called whenever a process which has already opened the
- * device file attempts to read from it.
+/** @brief The device release function that is called whenever the device is closed/released by
+ * the userspace program
+ * @param inodep A pointer to an inode object (defined in linux/fs.h)
+ * @param filep A pointer to a file object (defined in linux/fs.h)
  */
-static ssize_t device_read(struct file *file,	/* see include/linux/fs.h   */
-			   char __user * buffer,	/* buffer to be filled with data */
-			   size_t length,	/* length of the buffer     */
-			   loff_t * offset)
+static int device_release(struct inode *inodep, struct file *filep){
+    printk(KERN_INFO "device_release\n");
+    mutex_unlock(&char_mutex);
+    //printk(KERN_INFO "Chardrv: Device successfully closed\n");
+    return SUCCESS;
+} /* device_release */
+
+
+/** @brief This function is called whenever device is being read from user space i.e. data is
+ * being sent from the device to the user. In this case is uses the copy_to_user() function to
+ * send the buffer string to the user and captures any errors.
+ * @param filep A pointer to a file object (defined in linux/fs.h)
+ * @param buffer The pointer to the buffer to which this function writes the data
+ * @param len The length of the b
+ * @param offset The offset if required
+ */
+static ssize_t 
+device_read(struct file *filep, char *buffer, size_t len, loff_t *offset)
 {
-	/* 
-	 * Number of bytes actually written to the buffer 
-	 */
-	int bytes_read = 0;
+    char * tmpPtr = buffer;
+    int tmpLen = 0;
+    //int error_count = 0;
+    int bytes_read = 0;
+    //int idx = 0;
+    printk(KERN_INFO "device_read\n");
+    // copy_to_user has the format ( * to, *from, size) and returns 0 on success
+    //error_count = copy_to_user(buffer, Message, len);
+    //bytes_read = __copy_to_user(buffer, Message, strlen(Message));
+	//printk(KERN_INFO "device_read(%p,%s,%d)", filep, buffer, bytes_read);
+	//printk(KERN_INFO "device_read(%p,%s,%s,%d)", filep, buffer, message, error_count);
 
-//#ifdef DEBUG
-	printk(KERN_INFO "device_read(%p,%p,%ld)\n", file, buffer, length);
-//#endif
+    //if (error_count==0){ // if true then have success
+    //    printk(KERN_INFO "Chardrv: Sent %d characters to the user\n", size_of_message);
+    //    return (size_of_message=0); // clear the position to the start and return 0
+    //} else {
+    //    printk(KERN_INFO "Chardrv: Failed to send %d characters to the user\n", error_count);
+    //    return -EFAULT; // Failed -- return a bad address message (i.e. -14)
+    //}
+#if 1
+    /* 
+     * Actually put the data into the buffer 
+     */
+    bytes_read = 0;
+//    tmpPtr = buffer;
+    tmpLen = len;
+    while (len && *Message_Ptr) {
 
-	/* 
-	 * If we're at the end of the message, return 0
-	 * (which signifies end of file) 
-	 */
-	if (*Message_Ptr == 0)
-		return 0;
+        /* 
+         * Because the buffer is in the user data segment,
+         * not the kernel data segment, assignment wouldn't
+         * work. Instead, we have to use put_user which
+         * copies data from the kernel data segment to the
+         * user data segment. 
+         */
+        put_user(*Message_Ptr++, buffer++);
+        len--;
+        bytes_read++;
+    }
+	printk(KERN_INFO "device_read(%p,%s,%d)", filep, tmpPtr, bytes_read);
+#endif
 
-	/* 
-	 * Actually put the data into the buffer 
-	 */
-	while (length && *Message_Ptr) {
+    return bytes_read;
+} /* device_read */
 
-		/* 
-		 * Because the buffer is in the user data segment,
-		 * not the kernel data segment, assignment wouldn't
-		 * work. Instead, we have to use put_user which
-		 * copies data from the kernel data segment to the
-		 * user data segment. 
-		 */
-		put_user(*(Message_Ptr++), buffer++);
-		length--;
-		bytes_read++;
-	}
-
-//#ifdef DEBUG
-	printk(KERN_INFO "Read %d bytes, %ld left\n", bytes_read, length);
-//#endif
-
-	/* 
-	 * Read functions are supposed to return the number
-	 * of bytes actually inserted into the buffer 
-	 */
-	return bytes_read;
-}
 
 /* 
  * This function is called when somebody tries to
@@ -173,6 +166,7 @@ device_write(struct file *file,
 	return i;
 }
 
+
 /* Extra driver entry points. */
 
 loff_t device_llseek (struct file * file, 
@@ -182,15 +176,13 @@ loff_t device_llseek (struct file * file,
   return 0;
 }
 
-//ssize_t (*read_iter) (struct kiocb *, struct iov_iter *, loff_t);
 ssize_t device_read_iter (struct kiocb * kiocb, 
-                          struct iov_iter * iov_iter)
+                          struct iov_iter * lov_iter)
 {
   printk(KERN_INFO "device_read_iter()\n");
   return 0;
 }
 
-//ssize_t (*write_iter) (struct kiocb *, struct iov_iter *, loff_t);
 ssize_t device_write_iter (struct kiocb * kiocb, 
                           struct iov_iter * iov_iter)
 {
@@ -279,21 +271,16 @@ int device_fasync (int val, struct file * file, int val1)
  * calling process), the ioctl call returns the output of this function.
  *
  */
-#if 0
-int device_ioctl(struct inode *inode,	/* see include/linux/fs.h */
-		 struct file *file,	/* ditto */
-		 unsigned int ioctl_num,	/* number and param for ioctl */
-		 unsigned long ioctl_param)
-#endif
+
 long device_unlocked_ioctl (struct file * file,
                          unsigned int ioctl_num,
                          unsigned long ioctl_param)
 
 {
-	int i;
-	char *temp;
-	char ch;
-
+	//int i;
+	//char *temp;
+	//char ch;
+#if 0
 	/* 
 	 * Switch according to the ioctl called 
 	 */
@@ -342,7 +329,7 @@ long device_unlocked_ioctl (struct file * file,
 		return Message[ioctl_param];
 		break;
 	}
-
+#endif
 	return SUCCESS;
 }
 
@@ -379,54 +366,67 @@ struct file_operations Fops = {
 /* 
  * Initialize the module - Register the character device 
  */
-int init_module()
+
+int device_init(void)
 {
-	int ret_val;
-	/* 
-	 * Register the character device (atleast try) 
-	 */
-	ret_val = register_chrdev(MAJOR_NUM, DEVICE_FILE_NAME, &Fops);
 
-	/* 
-	 * Negative values signify an error 
-	 */
-	if (ret_val < 0) {
-		printk(KERN_ALERT "%s failed with %d\n",
-		       "Sorry, registering the character device ", ret_val);
-		return ret_val;
-	}
+    printk(KERN_INFO "Chardrv: Initializing the Char LKM\n");
+ 
+    // Try to dynamically allocate a major number for the device -- more difficult but worth it
+    majorNumber = register_chrdev(0, DEVICE_NAME, &Fops);
+    if (majorNumber<0){
+        printk(KERN_ALERT "%s failed to register a major number\n", DEVICE_NAME);
+        return majorNumber;
+    }
+    printk(KERN_INFO "Chardrv: registered correctly with major number %d\n", majorNumber);
+ 
+    // Register the device class
+    chardrvClass = class_create(THIS_MODULE, CLASS_NAME);
+    if (IS_ERR(chardrvClass)){ // Check for error and clean up if there is
+        unregister_chrdev(majorNumber, DEVICE_NAME);
+        printk(KERN_ALERT "Failed to register device class\n");
+        return PTR_ERR(chardrvClass); // Correct way to return an error on a pointer
+    }
+    printk(KERN_INFO "Chardrv: device class registered correctly: %s\n", DEVICE_NAME);
+ 
+    // Register the device driver
+    chardrvDevice = device_create(chardrvClass, NULL, MKDEV(majorNumber, 0), NULL, DEVICE_NAME);
+    if (IS_ERR(chardrvDevice)){ // Clean up if there is an error
+        class_destroy(chardrvClass); // Repeated code but the alternative is goto statements
+        unregister_chrdev(majorNumber, DEVICE_NAME);
+        printk(KERN_ALERT "Failed to create the device\n");
+        return PTR_ERR(chardrvDevice);
+    }
 
-	printk(KERN_INFO "KERNELVERSION: CURRENT Kernel %s\n", UTS_RELEASE);
-#if 0
-	#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 10)
-		printk(KERN_INFO "KERNELVERSION: OLD Kernel %s\n", UTS_RELEASE);
-	#elif LINUX_VERSION_CODE <= KERNEL_VERSION(4, 10, 0)
-		printk(KERN_INFO "KERNELVERSION: NEW Kernel %s\n", UTS_RELEASE);
-	#else
-		printk(KERN_INFO "KERNELVERSION: CURRENT Kernel %s\n", UTS_RELEASE);
-	#endif
-#endif
+    printk(KERN_INFO "Chardrv: device class created correctly\n"); // Made it! device was initialized
+    mutex_init(&char_mutex); // initialize mutex lock
 
-	printk(KERN_INFO "%s The major device number is %d.\n",
-	       "Registration is a success", MAJOR_NUM);
-	printk(KERN_INFO "If you want to talk to the device driver,\n");
-	printk(KERN_INFO "you'll have to create a device file. \n");
-	printk(KERN_INFO "We suggest you use:\n");
-	printk(KERN_INFO "mknod %s c %d 0\n", DEVICE_FILE_NAME, MAJOR_NUM);
-	printk(KERN_INFO "The device file name is important, because\n");
-	printk(KERN_INFO "the ioctl program assumes that's the\n");
-	printk(KERN_INFO "file you'll use.\n");
-
-	return 0;
+    return SUCCESS; 
 }
 
-/* 
+/*
  * Cleanup - unregister the appropriate file from /proc 
  */
-void cleanup_module()
-{
-	/* 
-	 * Unregister the device 
-	 */
-	unregister_chrdev(MAJOR_NUM, DEVICE_FILE_NAME);
+
+/** @brief The LKM cleanup function
+ * Similar to the initialization function, it is static. The __exit macro notifies that if this
+ * code is used for a built-in driver (not a LKM) that this function is not required.
+ */
+static void __exit device_exit(void){
+    printk(KERN_INFO "device_exit\n");
+    mutex_destroy(&char_mutex); // remove mutex lock
+    device_destroy(chardrvClass, MKDEV(majorNumber, 0)); // remove the device
+    class_unregister(chardrvClass); // unregister the device class
+    class_destroy(chardrvClass); // remove the device class
+    unregister_chrdev(majorNumber, DEVICE_NAME); // unregister the major number
+    printk(KERN_INFO "Chardrv: Goodbye from the LKM!\n");
 }
+
+
+
+/*====================================================================*/
+
+module_init(device_init);
+module_exit(device_exit);
+
+/*====================================================================*/
