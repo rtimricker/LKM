@@ -2,12 +2,6 @@
 /*
  *  chardev.c - Create an input/output character device
  */
-#if 0
-#include <linux/kernel.h>	/* We're doing kernel work */
-#include <linux/module.h>	/* Specifically, a module */
-#include <linux/fs.h>
-#include <asm/uaccess.h>	/* for get_user and put_user */
-#else
 
 #include <linux/mutex.h> // mutex locks to provide concurrency protection
 #include <linux/kernel.h>       /* We're doing kernel work */
@@ -29,8 +23,6 @@
 #include <linux/delay.h> 
  
 #include "chardev.h"
-
-#endif
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Roger Tim Ricker");
@@ -58,15 +50,15 @@ static ssize_t device_write(struct file *, const char __user *, size_t, loff_t *
 static int device_open( struct inode *inode, struct file  *filp)
 {
 #ifdef DEBUG
-	printk(KERN_INFO "device_open(%p)\n", file);
+	printk(KERN_INFO "Chardrv: device_open(%p)\n", file);
 #endif
-	device_ch_t* ch = NULL;
+	//device_ch_t* ch = NULL;
 
-    printk (KERN_INFO "device_open(0x%p, 0x%p)\n", inode, filp);
+  printk (KERN_INFO "Chardrv: device_open(0x%p, 0x%p)\n", inode, filp);
 
-    filp->private_data = ch = container_of(inode->i_cdev, device_ch_t, cdev);
+  //filp->private_data = ch = container_of(inode->i_cdev, device_ch_t, cdev);
 
-    return SUCCESS;
+  return SUCCESS;
 }
 
 /** @brief The device release function that is called whenever the device is closed/released by
@@ -75,13 +67,11 @@ static int device_open( struct inode *inode, struct file  *filp)
  * @param filep A pointer to a file object (defined in linux/fs.h)
  */
 static int device_release(struct inode *inodep, struct file *filep){
-    printk(KERN_INFO "device_release\n");
+    printk(KERN_INFO "Chardrv: device_release\n");
     mutex_unlock(&char_mutex);
-    //printk(KERN_INFO "Chardrv: Device successfully closed\n");
+    printk(KERN_INFO "Chardrv: Device successfully closed\n");
     return SUCCESS;
 } /* device_release */
-
-
 /** @brief This function is called whenever device is being read from user space i.e. data is
  * being sent from the device to the user. In this case is uses the copy_to_user() function to
  * send the buffer string to the user and captures any errors.
@@ -95,32 +85,15 @@ device_read(struct file *filep, char *buffer, size_t len, loff_t *offset)
 {
     char * tmpPtr = buffer;
     int tmpLen = 0;
-    //int error_count = 0;
     int bytes_read = 0;
-    //int idx = 0;
-    printk(KERN_INFO "device_read\n");
-    // copy_to_user has the format ( * to, *from, size) and returns 0 on success
-    //error_count = copy_to_user(buffer, Message, len);
-    //bytes_read = __copy_to_user(buffer, Message, strlen(Message));
-	//printk(KERN_INFO "device_read(%p,%s,%d)", filep, buffer, bytes_read);
-	//printk(KERN_INFO "device_read(%p,%s,%s,%d)", filep, buffer, message, error_count);
+    printk(KERN_INFO "Chardrv: device_read\n");
 
-    //if (error_count==0){ // if true then have success
-    //    printk(KERN_INFO "Chardrv: Sent %d characters to the user\n", size_of_message);
-    //    return (size_of_message=0); // clear the position to the start and return 0
-    //} else {
-    //    printk(KERN_INFO "Chardrv: Failed to send %d characters to the user\n", error_count);
-    //    return -EFAULT; // Failed -- return a bad address message (i.e. -14)
-    //}
-#if 1
     /* 
      * Actually put the data into the buffer 
      */
     bytes_read = 0;
-//    tmpPtr = buffer;
     tmpLen = len;
     while (len && *Message_Ptr) {
-
         /* 
          * Because the buffer is in the user data segment,
          * not the kernel data segment, assignment wouldn't
@@ -132,8 +105,7 @@ device_read(struct file *filep, char *buffer, size_t len, loff_t *offset)
         len--;
         bytes_read++;
     }
-	printk(KERN_INFO "device_read(%p,%s,%d)", filep, tmpPtr, bytes_read);
-#endif
+  	printk(KERN_INFO "Chardrv: device_read(%p,%s,%d)", filep, tmpPtr, bytes_read);
 
     return bytes_read;
 } /* device_read */
@@ -152,7 +124,7 @@ device_write(struct file *file,
 	int i;
 
 //#ifdef DEBUG
-	printk(KERN_INFO "device_write(%p,%s,%ld)", file, buffer, length);
+	printk(KERN_INFO "Chardrv: device_write(%p,%s,%ld)", file, buffer, length);
 //#endif
 
 	for (i = 0; i < length && i < BUF_LEN; i++)
@@ -172,62 +144,62 @@ device_write(struct file *file,
 loff_t device_llseek (struct file * file, 
                     loff_t loff, int val)
 {
-  printk(KERN_INFO "device_llseek(%p)\n", file);
+  printk(KERN_INFO "Chardrv: device_llseek(%p)\n", file);
   return 0;
 }
 
 ssize_t device_read_iter (struct kiocb * kiocb, 
                           struct iov_iter * lov_iter)
 {
-  printk(KERN_INFO "device_read_iter()\n");
+  printk(KERN_INFO "Chardrv: device_read_iter()\n");
   return 0;
 }
 
 ssize_t device_write_iter (struct kiocb * kiocb, 
                           struct iov_iter * iov_iter)
 {
-  printk(KERN_INFO "device_write_iter()\n");
+  printk(KERN_INFO "Chardrv: device_write_iter()\n");
   return 0;
 }
 
 int device_iopoll (struct kiocb * kiocb, 
                    bool spin)
 {
-  printk(KERN_INFO "device_iopoll()\n");
+  printk(KERN_INFO "Chardrv: device_iopoll()\n");
   return 0;
 }
 
 int device_iterate (struct file * file, 
                     struct dir_context * dir_context)
 {
-  printk(KERN_INFO "device_iterate()\n");
+  printk(KERN_INFO "Chardrv: device_iterate()\n");
   return 0;
 }
 
 int device_iterate_shared (struct file * file, 
                     struct dir_context * dir_context)
 {
-  printk(KERN_INFO "device_iterate_shared()\n");
+  printk(KERN_INFO "Chardrv: device_iterate_shared()\n");
   return 0;
 }
 
 int device_fsync (struct file * file, loff_t begin_loff, loff_t end_loff, int datasync)
 {
-  printk(KERN_INFO "device_fsync()\n");
+  printk(KERN_INFO "Chardrv: device_fsync()\n");
   return 0;
 }
 
 __poll_t device_poll (struct file * file, 
                 struct poll_table_struct * poll_table)
 {
-  printk(KERN_INFO "device_poll(%p)\n", file);
+  printk(KERN_INFO "Chardrv: device_poll(%p)\n", file);
   return 0;
 }
 
 int device_mmap (struct file * file, 
                 struct vm_area_struct * vm_area)
 {
-  printk(KERN_INFO "device_mmap(%p)\n", file);
+  printk(KERN_INFO "Chardrv: device_mmap(%p)\n", file);
   return 0;
 }
 
@@ -236,7 +208,7 @@ ssize_t device_aio_read (struct kiocb * kiocb,
                         unsigned long val, 
                         loff_t loff)
 {
-  printk(KERN_INFO "device_aio_read()\n");
+  printk(KERN_INFO "Chardrv: device_aio_read()\n");
   return 0;
 }
  
@@ -245,19 +217,19 @@ ssize_t device_aio_write (struct kiocb * kiocb,
                           unsigned long val, 
                           loff_t loff)
 {
-  printk(KERN_INFO "device_aio_write\n");
+  printk(KERN_INFO "Chardrv: device_aio_write\n");
   return 0;
 }
 
 int device_flush (struct file * file, fl_owner_t id)
 {
-  printk(KERN_INFO "device_flush(%p)\n", file);
+  printk(KERN_INFO "Chardrv: device_flush(%p)\n", file);
   return 0;
 }
 
 int device_fasync (int val, struct file * file, int val1)
 {
-  printk(KERN_INFO "device_fasync()\n");
+  printk(KERN_INFO "Chardrv: device_fasync()\n");
   return 0;
 }
 
@@ -284,7 +256,7 @@ long device_unlocked_ioctl (struct file * file,
 	/* 
 	 * Switch according to the ioctl called 
 	 */
-//printk (KERN_INFO "switch num (%d) param (%ld)\n", ioctl_num, ioctl_param);
+//printk (KERN_INFO "Chardrv: switch num (%d) param (%ld)\n", ioctl_num, ioctl_param);
 	switch (ioctl_num) {
 	case IOCTL_SET_MSG:
 		/* 
@@ -320,8 +292,8 @@ long device_unlocked_ioctl (struct file * file,
 		break;
 
 	case IOCTL_GET_NTH_BYTE:
-//printk (KERN_INFO "IOCTL_GET_NTH_BYTE\n");
-//printk (KERN_INFO "%ld\n", (unsigned long int)ioctl_param);
+//printk (KERN_INFO "Chardrv: IOCTL_GET_NTH_BYTE\n");
+//printk (KERN_INFO "Chardrv: %ld\n", (unsigned long int)ioctl_param);
 		/* 
 		 * This ioctl is both input (ioctl_param) and 
 		 * output (the return value of this function) 
@@ -369,13 +341,12 @@ struct file_operations Fops = {
 
 int device_init(void)
 {
-
     printk(KERN_INFO "Chardrv: Initializing the Char LKM\n");
  
     // Try to dynamically allocate a major number for the device -- more difficult but worth it
     majorNumber = register_chrdev(0, DEVICE_NAME, &Fops);
     if (majorNumber<0){
-        printk(KERN_ALERT "%s failed to register a major number\n", DEVICE_NAME);
+        printk(KERN_ALERT "Chardrv: %s failed to register a major number\n", DEVICE_NAME);
         return majorNumber;
     }
     printk(KERN_INFO "Chardrv: registered correctly with major number %d\n", majorNumber);
@@ -384,7 +355,7 @@ int device_init(void)
     chardrvClass = class_create(THIS_MODULE, CLASS_NAME);
     if (IS_ERR(chardrvClass)){ // Check for error and clean up if there is
         unregister_chrdev(majorNumber, DEVICE_NAME);
-        printk(KERN_ALERT "Failed to register device class\n");
+        printk(KERN_ALERT "Chardrv: Failed to register device class\n");
         return PTR_ERR(chardrvClass); // Correct way to return an error on a pointer
     }
     printk(KERN_INFO "Chardrv: device class registered correctly: %s\n", DEVICE_NAME);
@@ -394,7 +365,7 @@ int device_init(void)
     if (IS_ERR(chardrvDevice)){ // Clean up if there is an error
         class_destroy(chardrvClass); // Repeated code but the alternative is goto statements
         unregister_chrdev(majorNumber, DEVICE_NAME);
-        printk(KERN_ALERT "Failed to create the device\n");
+        printk(KERN_ALERT "Chardrv: Failed to create the device\n");
         return PTR_ERR(chardrvDevice);
     }
 
@@ -413,7 +384,7 @@ int device_init(void)
  * code is used for a built-in driver (not a LKM) that this function is not required.
  */
 static void __exit device_exit(void){
-    printk(KERN_INFO "device_exit\n");
+    printk(KERN_INFO "Chardrv: device_exit\n");
     mutex_destroy(&char_mutex); // remove mutex lock
     device_destroy(chardrvClass, MKDEV(majorNumber, 0)); // remove the device
     class_unregister(chardrvClass); // unregister the device class
@@ -421,8 +392,6 @@ static void __exit device_exit(void){
     unregister_chrdev(majorNumber, DEVICE_NAME); // unregister the major number
     printk(KERN_INFO "Chardrv: Goodbye from the LKM!\n");
 }
-
-
 
 /*====================================================================*/
 
