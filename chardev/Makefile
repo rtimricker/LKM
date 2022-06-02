@@ -1,7 +1,8 @@
 #CC = clang++
 #CC = g++
 CC = gcc
-obj-m = chardev.o
+obj-m = chardev.o 
+#CFLAGS = -O2 -Wall -DMODULE -D__KERNEL__ -DLINUX
  
 PWD := $(CURDIR) 
  
@@ -17,7 +18,4 @@ remove:
 
 insert:
 	sudo insmod chardev.ko
-
-node:
-	sudo mknod /dev/char_dev c 100 0
 

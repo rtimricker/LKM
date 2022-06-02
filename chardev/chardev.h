@@ -10,7 +10,7 @@
 #ifndef CHARDEV_H
 #define CHARDEV_H
 
-#include <linux/ioctl.h>
+//#include <linux/ioctl.h>
 /* 
  * Set the message of the device driver 
  */
@@ -58,10 +58,11 @@
 #define PDEBUG(fmt, args...) printk( KERN_ALERT DEVICE_NAME": " fmt, ## args)
 #define NUM_BH_MAX 8
 
+#if 0
 #include <linux/termios.h>
 typedef struct termios termios_t;
 typedef struct __device_dev_t device_dev_t;
-//typedef struct __device_ch_t device_ch_t;
+typedef struct __device_ch_t device_ch_t;
 typedef struct __device_ISR_BH_ARG_TYPE device_isr_bh_arg_t;
 
 /*======================================================================
@@ -69,7 +70,7 @@ typedef struct __device_ISR_BH_ARG_TYPE device_isr_bh_arg_t;
  *====================================================================*/
 
 struct __device_ch_t {
-    //struct cdev             cdev;                   // char device structure
+//    struct cdev             cdev;                   // char device structure
     device_dev_t            *dev;
     int                     cdev_init;              // CDEV initialized
     int                     id;                     // channel ID
@@ -129,12 +130,14 @@ struct __device_ch_t {
     unsigned int            retmask;
 
 }; /* struct __device_ch_t */
+#endif
 
+#if 0
 /*======================================================================
  * Definition of device device
  *====================================================================*/
 struct __device_dev_t {
-    //struct                  list_head entry;        // device list entry
+    struct              list_head * entry;        // device list entry
     int                     id;                     // device ID
     //spinlock_t              lock;                   // HW access spinlock
     char                    name[32];               // device name
@@ -157,5 +160,6 @@ struct __device_dev_t {
     int                     gcmd_result;
     unsigned long           gcmd_flags;
 }; /* struct __device_dev_t */
+#endif
 
 #endif
