@@ -1,0 +1,6 @@
+make --dry-run --keep-going --print-directory
+make: Entering directory '/home/timr/LKM'
+make: Leaving directory '/home/timr/LKM'
+ 
+make: *** No targets specified and no makefile found.  Stop.
+

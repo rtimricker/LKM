@@ -28,11 +28,22 @@ MODULE_INFO(retpoline, "Y");
 static const struct modversion_info ____versions[]
 __used __section("__versions") = {
 	{ 0xd9726f80, "module_layout" },
+	{ 0xc959d152, "__stack_chk_fail" },
+	{ 0xc5645b17, "class_unregister" },
+	{ 0xe340d421, "device_destroy" },
+	{ 0x977f511b, "__mutex_init" },
+	{ 0x64b60eb0, "class_destroy" },
+	{ 0x9f4f34bc, "device_create" },
 	{ 0x6bc3fbc0, "__unregister_chrdev" },
+	{ 0xa946dcde, "__class_create" },
 	{ 0x4102c7cb, "__register_chrdev" },
+	{ 0x37a0cba, "kfree" },
+	{ 0x69ecc112, "kmem_cache_alloc_trace" },
+	{ 0x36c11c94, "kmalloc_caches" },
+	{ 0xf4070957, "proc_create_data" },
+	{ 0x3c3ff9fd, "sprintf" },
+	{ 0x409bcb62, "mutex_unlock" },
 	{ 0xc3aaf0a9, "__put_user_1" },
-	{ 0xe271efb4, "try_module_get" },
-	{ 0x50f6845f, "module_put" },
 	{ 0x167e7f9d, "__get_user_1" },
 	{ 0xc5850110, "printk" },
 	{ 0xbdfb6dbb, "__fentry__" },
@@ -41,4 +52,4 @@ __used __section("__versions") = {
 MODULE_INFO(depends, "");
 
 
-MODULE_INFO(srcversion, "DC2DC5F236E3528704756E6");
+MODULE_INFO(srcversion, "420602B044911F3B6C0CF0E");

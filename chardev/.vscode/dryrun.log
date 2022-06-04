@@ -1,0 +1,6 @@
+make --dry-run --always-make --keep-going --print-directory
+make: Entering directory '/home/timr/LKM/chardev'
+make -C /lib/modules/5.13.0-44-generic/build M=/home/timr/LKM/chardev  modules
+gcc -o ioctl ioctl.c
+make: Leaving directory '/home/timr/LKM/chardev'
+ 

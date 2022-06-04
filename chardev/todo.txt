@@ -1,0 +1,12 @@
+
+Blocking read.
+Use Select.
+Use Epoll.
+Use Poll.
+Non-Blocking read.
+Read parallel with Write of same connection. Port, channel, etc.
+Implement IOCTLs.
+Implement queue (list_head(3) - Linux man page)
+generate soft interrupt (or signal)  when something in queue or an entry put in queue?
+Use queueing, worker threads, cmwq, etc.
+
