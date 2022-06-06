@@ -9,7 +9,7 @@
 #include <linux/version.h>
 #include <linux/init.h>
 #include <linux/fs.h>
-#include <asm/uaccess.h>        /* for get_user and put_user */
+#include <linux/uaccess.h>        /* for get_user and put_user */
 #include <asm/types.h>
 #include <linux/mm.h>
  
@@ -54,6 +54,12 @@ static int device_release(struct inode *, struct file *);
 static ssize_t device_read(struct file *, char __user *, size_t, loff_t *);
 static ssize_t device_write(struct file *, const char __user *, size_t, loff_t *);
 
+#define MAX_LEN       4096
+static struct proc_dir_entry *proc_entry;
+static char *info = NULL;
+static int write_index = 0;
+static int read_index = 0;
+
 static int device_open(struct inode *inode, struct file *filp)
 {
 #ifdef DEBUG
@@ -68,11 +74,6 @@ static int device_open(struct inode *inode, struct file *filp)
   return SUCCESS;
 }
 
-/** @brief The device release function that is called whenever the device is closed/released by
- * the userspace program
- * @param inodep A pointer to an inode object (defined in linux/fs.h)
- * @param filep A pointer to a file object (defined in linux/fs.h)
- */
 static int device_release(struct inode *inodep, struct file *filep)
 {
   printk(KERN_INFO "Chardrv: device_release\n");
@@ -95,7 +96,7 @@ static int device_release(struct inode *inodep, struct file *filep)
  *    none.
  *
  *====================================================================*/
-
+#if 0
 static void device_remove(
                 struct pci_dev *pcidev)
 {
@@ -149,37 +150,74 @@ static void device_remove(
 
         PDEBUG("remove ends here\n");
 } /* device_remove */
+#endif
 
-static ssize_t
-device_proc_read(struct file *filep, char *buffer, size_t len, loff_t *offset)
+//-----
+
+static int 
+device_proc_open (struct inode *inode, struct file *file)
 {
-//  char *tmpPtr = buffer;
-//  int tmpLen = 0;
-//  int bytes_read = 0;
-  printk(KERN_INFO "Chardrv: device_read_proc\n");
-
-  return SUCCESS;
+  printk ( KERN_INFO "proc file opened.....\t");
+  return 0;
 }
-
-static ssize_t
-device_proc_write(struct file *file, const char __user *buffer, size_t length, loff_t *offset)
-{
-//  char *tmpPtr = buffer;
-//  int tmpLen = 0;
-//  int bytes_read = 0;
-  printk(KERN_INFO "Chardrv: device_write_proc\n");
-
-  return SUCCESS;
-}
-
-/** @brief This function is called whenever device is being read from user space i.e. data is
- * being sent from the device to the user. In this case is uses the copy_to_user() function to
- * send the buffer string to the user and captures any errors.
- * @param filep A pointer to a file object (defined in linux/fs.h)
- * @param buffer The pointer to the buffer to which this function writes the data
- * @param len The length of the b
- * @param offset The offset if required
+/*
+ * This function will be called when we close the procfs file
  */
+static int 
+device_proc_release (struct inode *inode, struct file *file)
+{
+    printk (KERN_INFO "proc file released.....\n");
+    return 0;
+}
+/*
+ * This function will be called when we read the procfs file
+ */
+static ssize_t
+device_proc_read(struct file *filep, char __user *buff, size_t len, loff_t *off)
+{
+  char page[30];
+  //printk(KERN_INFO "Chardrv: device_read_proc.....\n");
+  printk (KERN_INFO "Chardrv: device_read_proc(), buf: %p, len: %d\n", buff, len);
+  if (off > 0) {
+//    *eof = 1;
+    return 0;
+  }
+
+  printk(KERN_INFO "Chardrv: read_index >= write_index\n");
+  if (read_index >= write_index) {
+    read_index = 0;
+  }
+
+  read_index += len;
+//  len = 0;
+  return len;
+}
+
+/*
+ * This function will be called when we write the procfs file
+ */
+static ssize_t 
+device_proc_write(struct file *filep, const char __user *buff, size_t len, loff_t *data)
+{
+  printk (KERN_INFO "Chardrv: device_proc_write(), buf: %p, len: %d\n", buff, len);
+//  int capacity = (MAX_LEN-write_index)+1;
+//  if (len > capacity) {
+//    printk(KERN_INFO "No space to write in procEntry123!\n");
+//    return -1;
+//  }
+//  return -2;
+  if (copy_from_user( &info[write_index], buff, len )) {
+    printk (KERN_INFO "Chardev: FAILED copy_from_user, buf: %p, len: %d\n", buff, len);
+  }
+  printk (KERN_INFO "Chardev: copy_from_user, buf: %p, len: %d\n", buff, len);
+
+  write_index += len;
+  info[write_index-1] = 0;
+  return len;
+} 
+
+//-----
+
 static ssize_t
 device_read(struct file *filep, char *buffer, size_t len, loff_t *offset)
 {
@@ -237,43 +275,37 @@ device_write(struct file *file, const char __user *buffer, size_t length, loff_t
 
 /* Extra driver entry points. */
 
-loff_t device_llseek(struct file *file,
-                     loff_t loff, int val)
+loff_t device_llseek(struct file *file, loff_t loff, int val)
 {
   printk(KERN_INFO "Chardrv: device_llseek(%p)\n", file);
   return 0;
 }
 
-ssize_t device_read_iter(struct kiocb *kiocb,
-                         struct iov_iter *lov_iter)
+ssize_t device_read_iter(struct kiocb *kiocb, struct iov_iter *lov_iter)
 {
   printk(KERN_INFO "Chardrv: device_read_iter()\n");
   return 0;
 }
 
-ssize_t device_write_iter(struct kiocb *kiocb,
-                          struct iov_iter *iov_iter)
+ssize_t device_write_iter(struct kiocb *kiocb, struct iov_iter *iov_iter)
 {
   printk(KERN_INFO "Chardrv: device_write_iter()\n");
   return 0;
 }
 
-int device_iopoll(struct kiocb *kiocb,
-                  bool spin)
+int device_iopoll(struct kiocb *kiocb, bool spin)
 {
   printk(KERN_INFO "Chardrv: device_iopoll()\n");
   return 0;
 }
 
-int device_iterate(struct file *file,
-                   struct dir_context *dir_context)
+int device_iterate(struct file *file, struct dir_context *dir_context)
 {
   printk(KERN_INFO "Chardrv: device_iterate()\n");
   return 0;
 }
 
-int device_iterate_shared(struct file *file,
-                          struct dir_context *dir_context)
+int device_iterate_shared(struct file *file, struct dir_context *dir_context)
 {
   printk(KERN_INFO "Chardrv: device_iterate_shared()\n");
   return 0;
@@ -285,15 +317,13 @@ int device_fsync(struct file *file, loff_t begin_loff, loff_t end_loff, int data
   return 0;
 }
 
-__poll_t device_poll(struct file *file,
-                     struct poll_table_struct *poll_table)
+__poll_t device_poll(struct file *file, struct poll_table_struct *poll_table)
 {
   printk(KERN_INFO "Chardrv: device_poll(%p)\n", file);
   return 0;
 }
 
-int device_mmap(struct file *file,
-                struct vm_area_struct *vm_area)
+int device_mmap(struct file *file, struct vm_area_struct *vm_area)
 {
   printk(KERN_INFO "Chardrv: device_mmap(%p)\n", file);
   return 0;
@@ -468,7 +498,9 @@ static int device_probe(
                 struct pci_dev * pcidev,
                 const struct pci_device_id * id)
 {
-        int res;
+//        int res;
+        printk(KERN_INFO "Chardrv: =====> device_probe <=====\n");
+
         //device_dev_t *dev = NULL;
         //device_card_t *brd = NULL;
         //int i;
@@ -481,20 +513,17 @@ static int device_probe(
         //device_setup_scc_t default_scc_setup;
         //get_default_setup(&default_scc_setup);
 
-        PDEBUG("device_probe\n");
-
-        if( (res = pci_enable_device(pcidev)) ) {
-                PDEBUG("probe: pci_enable_device failed\n");
-                return res;
-        }
+        //if( (res = pci_enable_device(pcidev)) ) {
+        //        PDEBUG("probe: pci_enable_device failed\n");
+        //        return res;
+        //}
         return 0;
 //error:
-        device_remove(pcidev);
+        //device_remove(pcidev);
 
-        return res;
+        //return res;
 
 } /* device_probe */
-
 
                   
 static struct pci_driver device_pci_driver = {
@@ -509,20 +538,19 @@ static struct pci_driver device_pci_driver = {
     */
 };     /* device_pci_driver */
 
-/*
- * The proc_ops structure. This is the glue layer which associates the
- * proc entry to the read and write operations.
- */
-struct proc_ops _proc_fops = {
+//struct proc_dir_entry *proc_dir;
+struct proc_ops proc_ops = {
+    .proc_open = device_proc_open,
     .proc_read = device_proc_read,
     .proc_write = device_proc_write,
+    .proc_release = device_proc_release,
 };
 
 struct k_list {
   struct list_head test_list;
   int temp;
 };
-//struct list_head test_head;
+struct list_head test_head;
 LIST_HEAD(test_head);
 struct k_list *one,*two,*three;
 struct k_list *entry;
@@ -577,26 +605,9 @@ static int device_read_procmem(
 } /* device_read_procmem */
 #endif
 
-
-struct proc_dir_entry *proc;
-//int len;
 char *msg = NULL;
 char name[30];
-
-void create_new_proc_entry(void) 
-{
-//  char *DATA = "Hello People"
-  sprintf("%s","Hello People");
-  PDEBUG ("CALLING create_proc read/write entry()\n");
-  sprintf (name, "driver/%s", DEVICE_NAME);
-
-  msg = "Hello World ";
-  proc_create_data("hello",0,NULL,&_proc_fops,msg);
-  //proc_create("hello",0,NULL,&_proc_fops);
-
-  //len = strlen(msg);
-  //temp = len;
-}
+char data[30];
 
 /*
  * Initialize the module - Register the character device
@@ -607,22 +618,14 @@ static int __init device_init(void)
  /* sample */
   int i;  
   int res = 0;
-//  char msg[30];
- 
+  //char msg[30];
+
+  //
+#if 0
   one=kmalloc(sizeof(struct k_list),GFP_KERNEL);
-  printk(KERN_INFO " kmalloc: %p\n", one);
-  two=kmalloc(sizeof(struct k_list),GFP_KERNEL);
-  printk(KERN_INFO " kmalloc: %p\n", two);
-  three=kmalloc(sizeof(struct k_list),GFP_KERNEL);
-  printk(KERN_INFO " kmalloc: %p\n", three);
-  //
+  printk(KERN_INFO "Chardrv: kmalloc: %p\n", one);
   one->temp=10;
-  two->temp=20;
-  three->temp=30;
-  //
   list_add(&one->test_list, &test_head);
-  list_add(&two->test_list, &test_head);
-  list_add(&three->test_list, &test_head);
   //
   i = 0;  
   ptr=&(one->test_list);
@@ -630,50 +633,17 @@ static int __init device_init(void)
       entry=list_entry(ptr,struct k_list,test_list);
       i=i+1;
       //printk(KERN_INFO "\n Entry %d %d  \n \n\n ", i,entry->temp);
-      printk(KERN_INFO "Entry %d %d\n", i,entry->temp);
+      printk(KERN_INFO "Chardrv: Entry %d %d\n", i,entry->temp);
   }
-
-  if (three) {
-    printk(KERN_INFO " Deleting one entry\n");
-    list_del(&(three->test_list));
-    kfree(three);
-    three = NULL;
-  }
-  if (two) {
-    printk(KERN_INFO " Deleting one entry\n");
-    list_del(&(two->test_list));
-    kfree(two);
-    two = NULL;
-  }
-  if(one) {
-    printk(KERN_INFO " Deleting one entry\n");
-    list_del(&(one->test_list));
-    one = NULL;
-  }
-
-  printk(KERN_INFO "Done....\n ");
-  //
-  /* end of sample */
+  #endif
 
   printk(KERN_INFO "Chardrv: Initializing the Char LKM\n");  
-
-  // Try to dynamically allocate a major number for the device -- more difficult but worth it
   majorNumber = register_chrdev(0, DEVICE_NAME, &Fops);
   if (majorNumber < 0) {
     printk(KERN_ALERT "Chardrv: %s failed to register a major number\n", DEVICE_NAME);
     return majorNumber;
   }
   printk(KERN_INFO "Chardrv: registered correctly with major number %d\n", majorNumber);
-
-#if 0
-//  if( (res = pci_register_driver(&device_pci_driver)) < 0 ) {
-//    PDEBUG ("pci_register_driver() FAILED\n");
-//    unregister_chrdev(majorNumber, DEVICE_NAME);         // unregister the major number
-//    //goto error;
-//    return -1;
-//  }
-//  PDEBUG ("pci_register_driver() SUCCESS\n");
-#endif
 
   // Register the device class
   chardrvClass = class_create(THIS_MODULE, CLASS_NAME);
@@ -684,8 +654,6 @@ static int __init device_init(void)
   }
   printk(KERN_INFO "Chardrv: device class registered correctly: %s\n", DEVICE_NAME);
 
-  //create_new_proc_entry();
-
   // Register the device driver
   chardrvDevice = device_create(chardrvClass, NULL, MKDEV(majorNumber, 0), NULL, DEVICE_NAME);
   if (IS_ERR(chardrvDevice)) {                              // Clean up if there is an error
@@ -694,38 +662,106 @@ static int __init device_init(void)
     printk(KERN_ALERT "Chardrv: Failed to create the device\n");
     return PTR_ERR(chardrvDevice);
   }
-
   printk(KERN_INFO "Chardrv: device class created correctly\n"); // Made it! device was initialized
+
+#if 0
+  // ----------
+  //if( (res = pci_register_driver(&device_pci_driver, THIS_MODULE, DEVICE_NAME)) < 0 ) {
+  if( (res = pci_register_driver(&device_pci_driver)) < 0 ) {
+    printk (KERN_INFO "Chardev: pci_register_driver() FAILED\n");
+    unregister_chrdev(majorNumber, DEVICE_NAME);         // unregister the major number
+    //goto error;
+    return -1;
+  }
+  printk (KERN_INFO "Chardrv: pci_register_driver() SUCCESS\n");
+  // ----------
+#endif
+
+#if 1
+  // ----------
+  sprintf (name, "%s", DEVICE_NAME);
+  //printk (KERN_INFO "Chardrv: device [%s], data [%s] \n", DEVICE_NAME, data);
+  //int ret = 0;
+  info = (char *)vmalloc( MAX_LEN );
+  memset( info, 0, MAX_LEN );
+  proc_entry = proc_create(name, 666, NULL, &proc_ops);
+//  proc_entry = proc_create_data(name, 666, NULL, &proc_ops, info);
+//  proc_entry = proc_create_data(name, 666, NULL, &proc_ops, NULL);
+  printk(KERN_INFO "chardrv: %p proc_entry\n", name);
+
+  if (proc_entry == NULL) {
+    if (info) {
+      vfree(info);
+      info = 0;
+    }
+    printk(KERN_INFO "Chardrv: %s could not be created\n", name);
+  } else {
+    write_index = 0;
+    read_index = 0;
+    printk(KERN_INFO "Chardrv: %s created.\n", name);
+  }
+  // ----------
+  #endif
+
   mutex_init(&char_mutex);                                       // initialize mutex lock
 
   return SUCCESS;
-}
+} /* init_device */
 
 /*
  * Cleanup - unregister the appropriate file from /proc
- */
-
-/** @brief The LKM cleanup function
- * Similar to the initialization function, it is static. The __exit macro notifies that if this
- * code is used for a built-in driver (not a LKM) that this function is not required.
  */
 static void __exit device_exit(void)
 {
   char name[30];
 
-  printk(KERN_INFO "Chardrv: device_exit\n");
+  printk (KERN_INFO "Chardrv: device_exit\n");
   mutex_destroy(&char_mutex);                          // remove mutex lock
-  device_destroy(chardrvClass, MKDEV(majorNumber, 0)); // remove the device
-  class_unregister(chardrvClass);                      // unregister the device class
+  // ----------
+  unregister_chrdev(majorNumber, DEVICE_NAME);         // unregister the major number
+  printk (KERN_INFO "Chardrv: unregister_chrdev() SUCCESS\n");
 
-  sprintf (name, "driver/%s", DEVICE_NAME);
-  //remove_proc_entry(name, NULL);
+  device_destroy(chardrvClass, MKDEV(majorNumber, 0)); // remove the device
+  printk (KERN_INFO "Chardrv: device_destroy() SUCCESS\n");
 
   class_destroy(chardrvClass);                         // remove the device class
-//  pci_unregister_driver(device_pci_driver);
-  unregister_chrdev(majorNumber, DEVICE_NAME);         // unregister the major number
+  printk (KERN_INFO "Chardrv: class_destroy() SUCCESS\n");
+
+  class_unregister(chardrvClass);                      // unregister the device class
+  printk (KERN_INFO "Chardrv: class_unregister() SUCCESS\n");
+    // ----------
+
+#if 0
+  // ----------
+  pci_unregister_driver(&device_pci_driver);
+  printk (KERN_INFO "Chardrv: pci_unregister_driver() SUCCESS\n");
+  // ----------
+#endif
+#if 1
+  // ----------
+  sprintf (name, "%s", DEVICE_NAME);
+  printk (KERN_INFO "Chardrv: remove_proc_entry read/write, %s\n", name);
+  //remove_proc_entry(name, proc_entry);
+  //remove_proc_entry(name, NULL);
+  proc_remove(proc_entry);
+
+  if (info) {
+    vfree(info);
+    info = 0;
+  }
+  // ----------
+#endif
+
+#if 0
+  if(one) {
+    printk(KERN_INFO "Chardrv: Deleting one entry\n");
+    list_del(&(one->test_list));
+    one = NULL;
+  }
+#endif
+
   printk(KERN_INFO "Chardrv: Goodbye from the LKM!\n");
-}
+} /* device_exit */
 
 /*====================================================================*/
 
