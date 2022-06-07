@@ -158,6 +158,7 @@ static int
 device_proc_open (struct inode *inode, struct file *file)
 {
   printk ( KERN_INFO "proc file opened.....\t");
+  read_index = write_index = 0;
   return 0;
 }
 /*
@@ -173,53 +174,7 @@ device_proc_release (struct inode *inode, struct file *file)
  * This function will be called when we read the procfs file
  */
 static ssize_t
-device_proc_read(struct file *filep, char __user *buff, size_t len, loff_t *off)
-{
-  char page[30];
-  //printk(KERN_INFO "Chardrv: device_read_proc.....\n");
-  printk (KERN_INFO "Chardrv: device_read_proc(), buf: %p, len: %d\n", buff, len);
-  if (off > 0) {
-//    *eof = 1;
-    return 0;
-  }
-
-  printk(KERN_INFO "Chardrv: read_index >= write_index\n");
-  if (read_index >= write_index) {
-    read_index = 0;
-  }
-
-  read_index += len;
-//  len = 0;
-  return len;
-}
-
-/*
- * This function will be called when we write the procfs file
- */
-static ssize_t 
-device_proc_write(struct file *filep, const char __user *buff, size_t len, loff_t *data)
-{
-  printk (KERN_INFO "Chardrv: device_proc_write(), buf: %p, len: %d\n", buff, len);
-//  int capacity = (MAX_LEN-write_index)+1;
-//  if (len > capacity) {
-//    printk(KERN_INFO "No space to write in procEntry123!\n");
-//    return -1;
-//  }
-//  return -2;
-  if (copy_from_user( &info[write_index], buff, len )) {
-    printk (KERN_INFO "Chardev: FAILED copy_from_user, buf: %p, len: %d\n", buff, len);
-  }
-  printk (KERN_INFO "Chardev: copy_from_user, buf: %p, len: %d\n", buff, len);
-
-  write_index += len;
-  info[write_index-1] = 0;
-  return len;
-} 
-
-//-----
-
-static ssize_t
-device_read(struct file *filep, char *buffer, size_t len, loff_t *offset)
+device_proc_read(struct file *filep, char *buffer, size_t length, loff_t *offset)
 {
   char *tmpPtr = buffer;
   int tmpLen = 0;
@@ -230,9 +185,58 @@ device_read(struct file *filep, char *buffer, size_t len, loff_t *offset)
    * Actually put the data into the buffer
    */
   bytes_read = 0;
-  tmpLen = len;
-  while (len && *Message_Ptr)
-  {
+  tmpLen = length;
+  while (length && *Message_Ptr) {
+    put_user(*Message_Ptr++, buffer++);
+    length--;
+    bytes_read++;
+  }
+
+  printk(KERN_INFO "Chardrv: device_read(%p,%s,%d)", filep, tmpPtr, bytes_read);
+
+  return bytes_read;
+}
+
+/*
+ * This function will be called when we write the procfs file
+ */
+static ssize_t 
+device_proc_write(struct file *filep, const char *buffer, size_t length, loff_t * offset)
+{
+  int i;
+
+  //#ifdef DEBUG
+  printk(KERN_INFO "Chardrv: device_write(%p,%s,%ld)", filep, buffer, length);
+  //#endif
+
+  for (i = 0; i < length && i < BUF_LEN; i++) {
+    get_user(Message[i], buffer + i);
+  }
+
+  Message_Ptr = Message;
+
+  /*
+   * Again, return the number of input characters used
+   */
+  return i;
+} 
+
+//-----
+
+static ssize_t
+device_read(struct file *filep, char *buffer, size_t length, loff_t *offset)
+{
+  char *tmpPtr = buffer;
+  int tmpLen = 0;
+  int bytes_read = 0;
+  printk(KERN_INFO "Chardrv: device_read\n");
+
+  /*
+   * Actually put the data into the buffer
+   */
+  bytes_read = 0;
+  tmpLen = length;
+  while (length && *Message_Ptr) {
     /*
      * Because the buffer is in the user data segment,
      * not the kernel data segment, assignment wouldn't
@@ -241,9 +245,10 @@ device_read(struct file *filep, char *buffer, size_t len, loff_t *offset)
      * user data segment.
      */
     put_user(*Message_Ptr++, buffer++);
-    len--;
+    length--;
     bytes_read++;
   }
+
   printk(KERN_INFO "Chardrv: device_read(%p,%s,%d)", filep, tmpPtr, bytes_read);
 
   return bytes_read;
@@ -262,8 +267,9 @@ device_write(struct file *file, const char __user *buffer, size_t length, loff_t
   printk(KERN_INFO "Chardrv: device_write(%p,%s,%ld)", file, buffer, length);
   //#endif
 
-  for (i = 0; i < length && i < BUF_LEN; i++)
+  for (i = 0; i < length && i < BUF_LEN; i++) {
     get_user(Message[i], buffer + i);
+  }
 
   Message_Ptr = Message;
 
@@ -543,7 +549,7 @@ struct proc_ops proc_ops = {
     .proc_open = device_proc_open,
     .proc_read = device_proc_read,
     .proc_write = device_proc_write,
-    .proc_release = device_proc_release,
+    .proc_release = device_proc_release
 };
 
 struct k_list {
