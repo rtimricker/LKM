@@ -24,10 +24,12 @@
 #include <linux/slab.h>     /* kmalloc */
 #include <linux/dma-mapping.h>
 #include <linux/moduleparam.h>
-
 #include <linux/proc_fs.h>
 
 #include <linux/pci.h>
+#include <linux/pci-acpi.h>
+#include <acpi/apei.h>
+#include <linux/aer.h>
 
 #include "chardev.h"
 
@@ -59,6 +61,7 @@ static struct proc_dir_entry *proc_entry;
 static char *info = NULL;
 static int write_index = 0;
 static int read_index = 0;
+static int registered_driver = 0;
 
 static int device_open(struct inode *inode, struct file *filp)
 {
@@ -77,7 +80,7 @@ static int device_open(struct inode *inode, struct file *filp)
 static int device_release(struct inode *inodep, struct file *filep)
 {
   printk(KERN_INFO "Chardrv: device_release\n");
-  mutex_unlock(&char_mutex);
+  //mutex_unlock(&char_mutex);
   printk(KERN_INFO "Chardrv: Device successfully closed\n");
   return SUCCESS;
 } /* device_release */
@@ -96,15 +99,14 @@ static int device_release(struct inode *inodep, struct file *filep)
  *    none.
  *
  *====================================================================*/
-#if 0
-static void device_remove(
-                struct pci_dev *pcidev)
+#if 1
+static void device_remove(struct pci_dev *pcidev)
 {
         //dscc4_dev_t *dev = (dscc4_dev_t*)pci_get_drvdata(pcidev);
         //int idx;
 
         //PDEBUG ("device_remove() dev->id: %d\n",dev->id);
-        PDEBUG ("device_remove()\n");
+        printk (KERN_INFO "device_remove\n");
 
         //if( !(dev = (device_dev_t*)pci_get_drvdata(pcidev)) ) {
         //        return;
@@ -148,7 +150,7 @@ static void device_remove(
 
         //kfree(dev);
 
-        PDEBUG("remove ends here\n");
+        printk (KERN_INFO "device_remove ends here\n");
 } /* device_remove */
 #endif
 
@@ -157,7 +159,7 @@ static void device_remove(
 static int 
 device_proc_open (struct inode *inode, struct file *file)
 {
-  printk ( KERN_INFO "proc file opened.....\t");
+  printk ( KERN_INFO "proc file opened.....\n");
   read_index = write_index = 0;
   return 0;
 }
@@ -177,10 +179,11 @@ static ssize_t
 device_proc_read(struct file *filep, char *buffer, size_t length, loff_t *offset)
 {
   char *tmpPtr = buffer;
-  int tmpLen = 0;
+  //int tmpLen = 0;
   int bytes_read = 0;
-  printk(KERN_INFO "Chardrv: device_read\n");
-
+  //printk(KERN_INFO "Chardrv: device_proc_read\n");
+  printk(KERN_INFO "Chardrv: device_proc_read(%p,%s,%d), length: %ld\n", filep, tmpPtr, bytes_read, length);
+#if 0
   /*
    * Actually put the data into the buffer
    */
@@ -193,7 +196,7 @@ device_proc_read(struct file *filep, char *buffer, size_t length, loff_t *offset
   }
 
   printk(KERN_INFO "Chardrv: device_read(%p,%s,%d)", filep, tmpPtr, bytes_read);
-
+#endif
   return bytes_read;
 }
 
@@ -203,12 +206,12 @@ device_proc_read(struct file *filep, char *buffer, size_t length, loff_t *offset
 static ssize_t 
 device_proc_write(struct file *filep, const char *buffer, size_t length, loff_t * offset)
 {
-  int i;
+  int i = 0;
 
   //#ifdef DEBUG
-  printk(KERN_INFO "Chardrv: device_write(%p,%s,%ld)", filep, buffer, length);
+  printk(KERN_INFO "Chardrv: device_proc_write(%p,%s,%ld)\n", filep, buffer, length);
   //#endif
-
+#if 1
   for (i = 0; i < length && i < BUF_LEN; i++) {
     get_user(Message[i], buffer + i);
   }
@@ -218,6 +221,8 @@ device_proc_write(struct file *filep, const char *buffer, size_t length, loff_t 
   /*
    * Again, return the number of input characters used
    */
+#endif
+  printk(KERN_INFO "Chardrv: device_proc_write, return: %d\n", i);
   return i;
 } 
 
@@ -504,8 +509,8 @@ static int device_probe(
                 struct pci_dev * pcidev,
                 const struct pci_device_id * id)
 {
-//        int res;
-        printk(KERN_INFO "Chardrv: =====> device_probe <=====\n");
+        int res;
+        printk(KERN_INFO "Chardrv: device_probe, pci_dev: %p, pci_device_id: %p\n", pcidev, id);
 
         //device_dev_t *dev = NULL;
         //device_card_t *brd = NULL;
@@ -519,10 +524,12 @@ static int device_probe(
         //device_setup_scc_t default_scc_setup;
         //get_default_setup(&default_scc_setup);
 
-        //if( (res = pci_enable_device(pcidev)) ) {
-        //        PDEBUG("probe: pci_enable_device failed\n");
-        //        return res;
-        //}
+        if( (res = pci_enable_device(pcidev)) ) {
+          printk (KERN_INFO "probe: pci_enable_device failed\n");
+          device_remove(pcidev);
+          return res;
+        }
+        printk (KERN_INFO "probe: pci_enable_device SUCCESS\n");
         return 0;
 //error:
         //device_remove(pcidev);
@@ -531,17 +538,28 @@ static int device_probe(
 
 } /* device_probe */
 
-                  
+
+  /*======================================================================
+   * PCI Driver implementation
+   *====================================================================*/
+  static struct pci_device_id device_ids[] =
+  {
+    {
+      .vendor = PCI_ANY_ID,
+      .device = PCI_ANY_ID,
+      /* .port_type = PCIE_RC_PORT, */
+      /* .service_type = PCIE_PORT_SERVICE_AER, */
+    },
+    { 0, }
+  };
+ 
+  MODULE_DEVICE_TABLE(pci, device_ids);
+                
 static struct pci_driver device_pci_driver = {
   .name = DEVICE_NAME,
-  .probe = device_probe
-
-  /*
-      .name = DEVICE_NAME,
-      .id_table = device_ids,
-      .probe =    device_probe,
-      .remove =   device_remove,
-    */
+  .probe = device_probe,
+  .remove =   device_remove,
+  .id_table = device_ids 
 };     /* device_pci_driver */
 
 //struct proc_dir_entry *proc_dir;
@@ -622,7 +640,7 @@ char data[30];
 static int __init device_init(void)
 {
  /* sample */
-  int i;  
+  //int i;  
   int res = 0;
   //char msg[30];
 
@@ -670,21 +688,21 @@ static int __init device_init(void)
   }
   printk(KERN_INFO "Chardrv: device class created correctly\n"); // Made it! device was initialized
 
-#if 0
+#if 1
   // ----------
-  //if( (res = pci_register_driver(&device_pci_driver, THIS_MODULE, DEVICE_NAME)) < 0 ) {
   if( (res = pci_register_driver(&device_pci_driver)) < 0 ) {
     printk (KERN_INFO "Chardev: pci_register_driver() FAILED\n");
     unregister_chrdev(majorNumber, DEVICE_NAME);         // unregister the major number
-    //goto error;
     return -1;
   }
-  printk (KERN_INFO "Chardrv: pci_register_driver() SUCCESS\n");
+  registered_driver = 1;
+  printk (KERN_INFO "Chardrv: pci_register_driver SUCCESS\n");
   // ----------
 #endif
 
 #if 1
   // ----------
+  //sprintf (name, "driver/%s", DEVICE_NAME);
   sprintf (name, "%s", DEVICE_NAME);
   //printk (KERN_INFO "Chardrv: device [%s], data [%s] \n", DEVICE_NAME, data);
   //int ret = 0;
@@ -700,16 +718,16 @@ static int __init device_init(void)
       vfree(info);
       info = 0;
     }
-    printk(KERN_INFO "Chardrv: %s could not be created\n", name);
+    printk(KERN_INFO "Chardrv: [%s] could not be created\n", name);
   } else {
     write_index = 0;
     read_index = 0;
-    printk(KERN_INFO "Chardrv: %s created.\n", name);
+    printk(KERN_INFO "Chardrv: [%s] created.\n", name);
   }
   // ----------
   #endif
 
-  mutex_init(&char_mutex);                                       // initialize mutex lock
+  //mutex_init(&char_mutex);                                       // initialize mutex lock
 
   return SUCCESS;
 } /* init_device */
@@ -722,25 +740,25 @@ static void __exit device_exit(void)
   char name[30];
 
   printk (KERN_INFO "Chardrv: device_exit\n");
-  mutex_destroy(&char_mutex);                          // remove mutex lock
+//  mutex_destroy(&char_mutex);                          // remove mutex lock
   // ----------
-  unregister_chrdev(majorNumber, DEVICE_NAME);         // unregister the major number
-  printk (KERN_INFO "Chardrv: unregister_chrdev() SUCCESS\n");
-
   device_destroy(chardrvClass, MKDEV(majorNumber, 0)); // remove the device
-  printk (KERN_INFO "Chardrv: device_destroy() SUCCESS\n");
-
-  class_destroy(chardrvClass);                         // remove the device class
-  printk (KERN_INFO "Chardrv: class_destroy() SUCCESS\n");
+  printk (KERN_INFO "Chardrv: device_destroy \n");
 
   class_unregister(chardrvClass);                      // unregister the device class
-  printk (KERN_INFO "Chardrv: class_unregister() SUCCESS\n");
-    // ----------
+  printk (KERN_INFO "Chardrv: class_unregister \n");
 
-#if 0
+  class_destroy(chardrvClass);                         // remove the device class
+  printk (KERN_INFO "Chardrv: class_destroy \n");
+
+  unregister_chrdev(majorNumber, DEVICE_NAME);         // unregister the major number
+  printk (KERN_INFO "Chardrv: unregister_chrdev \n");
+  // ----------
+
+#if 1
   // ----------
   pci_unregister_driver(&device_pci_driver);
-  printk (KERN_INFO "Chardrv: pci_unregister_driver() SUCCESS\n");
+  printk (KERN_INFO "Chardrv: pci_unregister_driver \n");
   // ----------
 #endif
 #if 1
@@ -748,8 +766,8 @@ static void __exit device_exit(void)
   sprintf (name, "%s", DEVICE_NAME);
   printk (KERN_INFO "Chardrv: remove_proc_entry read/write, %s\n", name);
   //remove_proc_entry(name, proc_entry);
-  //remove_proc_entry(name, NULL);
-  proc_remove(proc_entry);
+  remove_proc_entry(name, NULL);
+  //proc_remove(proc_entry);
 
   if (info) {
     vfree(info);
@@ -765,6 +783,9 @@ static void __exit device_exit(void)
     one = NULL;
   }
 #endif
+
+  printk (KERN_INFO "Chardrv: device_exit\n");
+  //mutex_destroy(&char_mutex);                          // remove mutex lock
 
   printk(KERN_INFO "Chardrv: Goodbye from the LKM!\n");
 } /* device_exit */
