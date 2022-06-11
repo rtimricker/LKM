@@ -58,13 +58,45 @@
 #define PDEBUG(fmt, args...) printk( KERN_ALERT DEVICE_NAME": " fmt, ## args)
 #define NUM_BH_MAX 8
 
-#if 0
 #include <linux/termios.h>
 typedef struct termios termios_t;
 typedef struct __device_dev_t device_dev_t;
 typedef struct __device_ch_t device_ch_t;
 typedef struct __device_ISR_BH_ARG_TYPE device_isr_bh_arg_t;
+typedef struct __device_card_t device_card_t;
 
+struct __device_ch_t {
+    //struct cdev             cdev;                   // char device structure 
+    device_dev_t            *dev;
+    int                     id;                     // channel ID
+};
+
+struct __device_dev_t {
+    struct              list_head * entry;        // device list entry
+    struct workqueue_struct *wq;  /* work queue */
+    device_dev_t            *dev;
+    int                     id;                     // device ID
+    struct pci_dev          *pcidev;                // kernel PCI deviceG
+    device_card_t*          card;
+};
+
+struct __device_card_t {
+        device_dev_t*            dev[3];                         // number of controllers per card
+        int                     irq;                            // irq per card;
+        int                     id;                             // card id/number;
+        //device_dev_t            *dev;
+        int                     ref_count;
+        int                     bus_number;
+        int                     controller_count;
+//        hss_board_type_t        board_type;
+        int                     board_number;                   // used for device name in INIT
+        int                     previous_board_type;
+//        struct semaphore        sem;                            // sync semaphore 
+//        u8                      do12[ 96 ];                     // HSS-cPCI-CC descrete array 
+        int                     do12_set[12];
+};
+               
+#if 0
 /*======================================================================
  * Definition of device channel
  *====================================================================*/
