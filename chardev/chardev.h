@@ -10,7 +10,6 @@
 #ifndef CHARDEV_H
 #define CHARDEV_H
 
-//#include <linux/ioctl.h>
 /* 
  * Set the message of the device driver 
  */
@@ -59,43 +58,62 @@
 #define NUM_BH_MAX 8
 
 #include <linux/termios.h>
+
+#if 1
+//struct _cdev {
+//	struct kobject kobj;
+//	struct module *owner;
+//	const struct file_operations *ops;
+//	struct list_head list;
+//	dev_t dev;
+//	unsigned int count;
+//} __randomize_layout;
+
 typedef struct termios termios_t;
+typedef struct __device_ISR_BH_ARG_TYPE device_isr_bh_arg_t;
 typedef struct __device_dev_t device_dev_t;
 typedef struct __device_ch_t device_ch_t;
-typedef struct __device_ISR_BH_ARG_TYPE device_isr_bh_arg_t;
 typedef struct __device_card_t device_card_t;
+typedef struct cdev cdev_t;
+
+#define DEVICE_CHANNEL_MAX 4
+#define NUM_BH_MAX 8
 
 struct __device_ch_t {
-    //struct cdev             cdev;                   // char device structure 
+    struct cdev             *cdev;                   // char device structure
     device_dev_t            *dev;
+    int                     cdev_init;              // CDEV initialized
     int                     id;                     // channel ID
+    int                     minor;                  // channel minor number
+    char                    name[32];               // channel name
+    int                     ref_count;   
 };
-
 struct __device_dev_t {
     struct              list_head * entry;        // device list entry
     struct workqueue_struct *wq;  /* work queue */
     device_dev_t            *dev;
     int                     id;                     // device ID
+    device_ch_t             ch[DEVICE_CHANNEL_MAX];
+    char                    name[32];               // device name 
     struct pci_dev          *pcidev;                // kernel PCI deviceG
     device_card_t*          card;
 };
-
 struct __device_card_t {
-        device_dev_t*            dev[3];                         // number of controllers per card
-        int                     irq;                            // irq per card;
-        int                     id;                             // card id/number;
-        //device_dev_t            *dev;
-        int                     ref_count;
-        int                     bus_number;
-        int                     controller_count;
-//        hss_board_type_t        board_type;
-        int                     board_number;                   // used for device name in INIT
-        int                     previous_board_type;
-//        struct semaphore        sem;                            // sync semaphore 
-//        u8                      do12[ 96 ];                     // HSS-cPCI-CC descrete array 
-        int                     do12_set[12];
+    device_dev_t*            dev[3];                         // number of controllers per card
+    int                     irq;                            // irq per card;
+    int                     id;                             // card id/number;
+    //device_dev_t            *dev;
+    int                     ref_count;
+    int                     bus_number;
+    int                     controller_count;
+    int                     board_number;                   // used for device name in INIT
+    int                     previous_board_type;
+    int                     do12_set[12];
 };
-               
+
+
+#endif
+
 #if 0
 /*======================================================================
  * Definition of device channel

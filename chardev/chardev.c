@@ -13,7 +13,6 @@
 #include <asm/types.h>
 #include <linux/mm.h>
  
-#include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/raw.h>
 #include <linux/utsname.h>
@@ -32,6 +31,7 @@
 #include <linux/aer.h>
 
 #include <linux/workqueue.h>
+#include <linux/cdev.h>
 
 #include "chardev.h"
 
@@ -39,26 +39,26 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Roger Tim Ricker");
 MODULE_DESCRIPTION("A sample character driver");
 
-static device_card_t device_card[10] = {};
+//static device_card_t device_card[10] = {};
 static int card_array[10]={0};          // card_array[card number]
 static void* dev_array[10]={0};         // dev_array[card number]
-static int first_irq = 0;
+//static int first_irq = 0;
 static int card_number = -1;
-static int channel_number = -1;
-static int previous_bus = 0;
+//static int channel_number = -1;
+//static int previous_bus = 0;
 
 /*======================================================================
  * Device list of devices & device count
  *====================================================================*/
 LIST_HEAD(device_dev_list);
 static int device_dev_count = 0;      /* actual count */
-static int device_ch_count = 0;       /* channel actual count */
+//static int device_ch_count = 0;       /* channel actual count */
 
 #define SUCCESS 0
 #define BUF_LEN 80
 
 #define CLASS_NAME "mod" // The device class -- this is a character device
-static int majorNumber;  // Stores the device number -- determined automatically
+static int majorNumber = 0;  // Stores the device number -- determined automatically
 // static char message[256] = {0}; /// Memory for the string that is passed from userspace
 // static short size_of_message; /// Used to remember the size of the string stored
 static struct class *chardrvClass = NULL;   // The device-driver class struct pointer
@@ -80,16 +80,13 @@ static int write_index = 0;
 static int read_index = 0;
 static int registered_driver = 0;
 
-static int device_open(struct inode *inode, struct file *filp)
+static int device_open(struct inode *inode, struct file *filep)
 {
-//#ifdef DEBUG
-  printk(KERN_INFO "Chardrv: device_open(%p)\n", filp);
-//#endif
-  // device_ch_t* ch = NULL;
+  printk(KERN_INFO "Chardrv: device_open(0x%p, 0x%p)\n", inode, filep);
 
-  printk(KERN_INFO "Chardrv: device_open(0x%p, 0x%p)\n", inode, filp);
-
-  // filp->private_data = ch = container_of(inode->i_cdev, device_ch_t, cdev);
+  //filp->private_data = ch = container_of(inode->i_cdev, device_ch_t, cdev);
+  //filep->private_data = inode->i_cdev->dev;
+  //filep->private_data = (void*)inode->i_cdev;
 
   return SUCCESS;
 }
@@ -156,12 +153,14 @@ void device_uninitialize(device_dev_t *dev)
 #if 1
 static void device_remove(struct pci_dev *pcidev)
 {
+  int idx = 0;
+
   device_dev_t *dev = (device_dev_t*)pci_get_drvdata(pcidev);
 
-  printk (KERN_INFO "Chardrv: device_remove, pcidev: [0x%X], dev: [0x%X]\n", pcidev, dev);
+  printk (KERN_INFO "Chardrv: device_remove, pcidev: [0x%p], dev: [0x%p]\n", pcidev, dev);
 
-//  printk (KERN_INFO "pcidev: vendor [0x%X], device [0x%X], subsystem_vendor [0x%X]\n",
-//                  pcidev->vendor, pcidev->device, pcidev->subsystem_vendor);
+  printk (KERN_INFO "Chardev: pcidev: vendor [0x%x], device [0x%x], subsystem_vendor [0x%x]\n",
+                  pcidev->vendor, pcidev->device, pcidev->subsystem_vendor);
 	
   if( !(dev = (device_dev_t*)pci_get_drvdata(pcidev)) ) {
     return;
@@ -170,11 +169,11 @@ static void device_remove(struct pci_dev *pcidev)
   //PDEBUG ("list_del\n");
   //list_del(&dev->entry);  // Remove device from the list.
 
-  //for( idx = 0; idx < device_CHANNEL_MAX; idx++ ) {
-  //        if( dev->ch[idx].cdev_init ) {
-  //                cdev_del(&dev->ch[idx].cdev);
-  //        }
-  //}
+  for( idx = 0; idx < DEVICE_CHANNEL_MAX; idx++ ) {
+    if( dev->ch[idx].cdev_init ) {
+      cdev_del(dev->ch[idx].cdev);
+    }
+  }
 
   // Clear all.
   flush_workqueue(dev->wq);
@@ -184,7 +183,7 @@ static void device_remove(struct pci_dev *pcidev)
   //        device_iounmap(dev->mem);
   //}
 
-  printk (KERN_INFO "kfree dev: [0x%X]\n", dev);
+  printk (KERN_INFO "kfree dev: [%p]\n", dev);
 
   memset(dev, 0, sizeof(device_dev_t));
   kfree(dev);
@@ -491,7 +490,7 @@ long device_unlocked_ioctl(struct file *file,
  * the devices table, it can't be local to
  * init_module. NULL is for unimplemented functions.
  */
-static struct file_operations Fops = {
+static struct file_operations device_fops = {
     .owner = THIS_MODULE,
     .open = device_open,
     .read = device_read,
@@ -511,6 +510,25 @@ static struct file_operations Fops = {
     .fsync = device_fsync,
     .fasync = device_fasync,
 };
+
+
+/* device_setup_cdev */ 
+static int device_setup_cdev(
+                device_ch_t *ch,
+                int index)
+{
+  int err, devno = MKDEV(majorNumber, index);
+
+  printk (KERN_INFO "Chardrv: device_setup_cdev\n");
+
+  cdev_init(ch->cdev, &device_fops);
+  if( (err = cdev_add (ch->cdev, devno, 1))) {
+    printk(KERN_ALERT "Chardrv: Error %d adding DEVNAME%d", err, index);
+    return err;
+  }
+  ch->cdev_init = 1;
+  return 0;
+} /* device_setup_cdev */
 
 //*****
 // * struct pci_driver {
@@ -551,17 +569,15 @@ static int device_probe(
 {
   int res;
   char workqueue_name[25];
-//        int i;
-//        int dev_number;
-//        int bus_number;
-//        int ii;
-//        char workqueue_name[25];
-//        u8 info;
+  int idx = 0;
+  int channel_number = 0;
+  int total_ch_count = 0;
+  //int board_number = 0;
   device_dev_t *dev = NULL;
 //        device_card_t *brd = NULL;
 
-  printk(KERN_INFO "Chardrv: device_probe, pcidev: [0x%X], id: [0x%x]\n", pcidev, id);
-  printk (KERN_INFO "pcidev: vendor [0x%X], device [0x%X], subsystem_vendor [0x%X], subsytem device [0x%X]\n",
+  printk(KERN_INFO "Chardrv: device_probe, pcidev: [%p], id: [%p]\n", pcidev, id);
+  printk (KERN_INFO "Chardrv: pcidev: vendor [0x%x], device [0x%x], subsystem_vendor [0x%x], subsytem device [0x%x]\n",
                   pcidev->vendor, pcidev->device, pcidev->subsystem_vendor, pcidev->subsystem_device);
   
   //device_setup_scc_t default_scc_setup;
@@ -572,42 +588,62 @@ static int device_probe(
     device_remove(pcidev);
     return res;
   }
-  printk (KERN_INFO "probe: pci_enable_device SUCCESS\n");
+  printk (KERN_INFO "Chardrv: probe: pci_enable_device SUCCESS\n");
 
   card_array[card_number]++;      // number of controllers per card
 
   if ( !(dev = (device_dev_t*)kmalloc(sizeof(device_dev_t), GFP_KERNEL)) ) {
-    printk(KERN_ALERT "kmalloc() failed.\n");
+    printk(KERN_ALERT "Chardrv: kmalloc() failed.\n");
     res = -ENOMEM;
-    //      goto error;
     return res;
   }
 
-  //pci_set_drvdata(pcidev);
-
-  printk (KERN_INFO "probe: dev: [0x%X], ID: [%d]\n", dev, dev->id);
+  printk (KERN_INFO "Chardrv: probe: dev: [0x%p], ID: [%d]\n", dev, dev->id);
   pci_set_drvdata(pcidev, dev);
 
   dev_array[device_dev_count] = dev;
   memset(dev, 0, sizeof(device_dev_t));
-
-  // ----------
-#if 1
-  // struct workqueue_struct *alloc_workqueue(const char *fmt, unsigned int flags, int max_active, ...);
-  sprintf(workqueue_name, "%s%d_wq", DEVICE_NAME , device_dev_count);
-  printk (KERN_INFO "create_workqueue: %s\n", workqueue_name);
-  if ( ! ( dev->wq = create_workqueue(workqueue_name))) {
-    printk(KERN_ALERT "create workqueue failed.\n");
-    res = -ENOMEM;
-//    goto error;
-    return res;
-  }
-#endif
-  // ----------
-  printk (KERN_INFO "=====>card_number %d, device number %d\n",card_number,card_array[card_number]-1);
-
   // Remember PCI device
   dev->pcidev = pcidev;
+
+  // ----------
+  // struct workqueue_struct *alloc_workqueue(const char *fmt, unsigned int flags, int max_active, ...);
+  //sprintf(workqueue_name, "%s%d_wq", DEVICE_NAME , device_dev_count);   // later use device_dev_count 
+  sprintf(workqueue_name, "%s%d_wq", DEVICE_NAME , card_array[card_number]-1);
+  printk (KERN_INFO "Chardrv: create_workqueue: %s\n", workqueue_name);
+  if ( ! ( dev->wq = create_workqueue(workqueue_name))) {
+    printk(KERN_ALERT "Chardrv: create workqueue failed.\n");
+    res = -ENOMEM;
+    return res;
+  }
+
+  // ----------
+  printk (KERN_INFO "=====>card_number %d, device number %d\n",card_number,card_array[card_number]-1);
+  // Remember PCI device
+  dev->pcidev = pcidev;
+  // ----------
+  printk (KERN_INFO "Chardrv: ADDING TO LIST: %s\n", dev->name);
+//  printk (KERN_INFO "Chardrv: ADDING TO LIST %p\n", dev);
+
+  for (idx = 0; idx < DEVICE_CHANNEL_MAX; idx++) {
+    dev->ch[idx].minor = total_ch_count;
+    total_ch_count++;
+    sprintf(dev->ch[idx].name, "%s%c", dev->name , channel_number + 'a');
+    channel_number++;
+
+    printk (KERN_INFO "Chardrv: ch: %d, dev %p, dev->id %d, dev->name: %s, dev->ch[%d].name: %s\n",
+            idx,dev,dev->id,dev->name,idx,dev->ch[idx].name);
+    /*
+    ** Initialize char dev structure
+    ** Device must be ready!
+    */ 
+    dev->ch[idx].cdev = cdev_alloc();
+    if( (res = device_setup_cdev(&dev->ch[idx], dev->ch[idx].minor)) < 0 ) {
+      printk(KERN_ALERT "Chardev: device_setup_cdev failed.\n");
+      return res;
+    }
+  }
+  // ----------
 
   return 0;
 //error:
@@ -710,18 +746,14 @@ static int device_read_procmem(
 char *msg = NULL;
 char name[30];
 char data[30];
-
 /*
  * Initialize the module - Register the character device
  */
-
+//static struct cdev gcdev;
 static int __init device_init(void)
 {
- /* sample */
-  //int i;  
   int res = 0;
-  //char msg[30];
-  device_dev_t *dev = NULL;
+  dev_t devno = 0;
   //
 #if 0
   one=kmalloc(sizeof(struct k_list),GFP_KERNEL);
@@ -739,12 +771,27 @@ static int __init device_init(void)
   }
   #endif
 
+#if 1
+  if( majorNumber ) {
+    devno = MKDEV(majorNumber, 0);
+    res = register_chrdev_region(devno, 1, DEVICE_NAME);
+  } else {
+    res = alloc_chrdev_region(&devno, 0, 1, DEVICE_NAME);
+    majorNumber = MAJOR(devno);
+  }
+  if( res < 0 ) {
+    printk(KERN_ALERT "alloc_chrdev_region or register_chrdev_region failed.\n");
+    return res;
+  }
+
+#else
   printk(KERN_INFO "Chardrv: Initializing the Char LKM\n");  
-  majorNumber = register_chrdev(0, DEVICE_NAME, &Fops);     // creates cdev, too
+  majorNumber = register_chrdev(0, DEVICE_NAME, &device_fops);     // creates cdev, too
   if (majorNumber < 0) {
     printk(KERN_ALERT "Chardrv: %s failed to register a major number\n", DEVICE_NAME);
     return majorNumber;
   }
+#endif
   printk(KERN_INFO "Chardrv: registered correctly with major number %d\n", majorNumber);
 
   // Register the device class
@@ -820,10 +867,17 @@ static void __exit device_exit(void)
   printk (KERN_INFO "Chardrv: device_destroy \n");
 
 	class_destroy( chardrvClass );
-  printk (KERN_INFO "Chardrv: class_destroy [%p] [0x%X]\n", chardrvClass, chardrvClass);
+  printk (KERN_INFO "Chardrv: class_destroy [%p] [%p]\n", chardrvClass, chardrvClass);
 
+#if 1
+  // Following is initialized in pci probe?
+
+  unregister_chrdev_region(MKDEV(majorNumber, 0), 1);
+  printk (KERN_INFO "Chardrv: unregister_chrdev_region\n");
+#else
 	unregister_chrdev( majorNumber, DEVICE_NAME );      // destroys cdev, too?
-   printk (KERN_INFO "Chardrv: unregister_chrdev \n");
+  printk (KERN_INFO "Chardrv: unregister_chrdev \n");
+#endif
 
 #if 0
   if(one) {
@@ -844,3 +898,4 @@ module_init(device_init);
 module_exit(device_exit);
 
 /*====================================================================*/
+

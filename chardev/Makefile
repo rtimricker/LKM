@@ -3,7 +3,7 @@
 CC = gcc
 obj-m = chardev.o 
 #CFLAGS = -O2 -Wall -DMODULE -D__KERNEL__ -DLINUX
- 
+CCFLAGS-y += -I/usr/src/linux-hwe-5.13-headers-5.13.0-48/include/
 PWD := $(CURDIR) 
  
 all: 
