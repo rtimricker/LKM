@@ -1,0 +1,41 @@
+{
+    "workbench.colorTheme": "Default Light+",
+    "git.autofetch": true,
+    "launch": {
+    },
+    "C_Cpp.autocompleteAddParentheses": true,
+    "gnuGlobal.globalExecutable": "",
+    "C_Cpp.default.cppStandard": "c++20",
+    "C_Cpp.default.cStandard": "c17",
+    "C_Cpp.default.customConfigurationVariables": {
+    
+    },
+    "C_Cpp.default.intelliSenseMode": "linux-gcc-x64",
+    "gnuGlobal.libraryPath": [
+        "/usr/src/linux-hwe-5.13-headers-5.13.0-48/include",
+        "/usr/src/linux-headers-5.13.0-48-generic/include/",
+        "/usr/src/linux-hwe-5.13-headers-5.13.0-48/arch/x86/include/",
+        "/usr/src/linux-headers-5.13.0-48-generic/arch/x86/include/",
+        "/usr/src/linux-headers-5.13.0-48-generic/arch/x86/include/asm",
+        "/usr/src/linux-headers-5.13.0-48-generic/arch/x86/include/generated/",
+        "/usr/src/linux-hwe-5.13-headers-5.13.0-48/include/uapi/"
+    ],
+    "C_Cpp.autocomplete": "Disabled",
+    "C_Cpp.clang_format_path": "usr/src/linux-hwe-5.13-headers-5.13.0-48/include/*",
+    "C_Cpp.default.includePath": [
+        "/usr/src/linux-headers-5.13.0-48-generic/include/",
+        "/usr/src/linux-hwe-5.13-headers-5.13.0-48/include/",
+        "/usr/src/linux-hwe-5.13-headers-5.13.0-48/arch/x86/include/",
+        "/usr/src/linux-headers-5.13.0-48-generic/arch/x86/include/",
+        "/usr/src/linux-headers-5.13.0-48-generic/arch/x86/include/asm",
+        "/usr/src/linux-headers-5.13.0-48-generic/arch/x86/include/generated/",
+        "/usr/src/linux-hwe-5.13-headers-5.13.0-48/include/uapi/"
+    ],
+    "C_Cpp.default.compilerPath": "/usr/bin/",
+    "C_Cpp.default.compilerArgs": [
+        "gcc"
+    ],
+    "C_Cpp.default.forcedInclude": [
+        "${default}"
+    ]
+}
