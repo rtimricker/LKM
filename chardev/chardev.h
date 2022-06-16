@@ -55,7 +55,6 @@
  */
 #define DEVICE_NAME "char_dev"
 #define PDEBUG(fmt, args...) printk( KERN_ALERT DEVICE_NAME": " fmt, ## args)
-#define NUM_BH_MAX 8
 
 #include <linux/termios.h>
 
@@ -70,7 +69,7 @@
 //} __randomize_layout;
 
 typedef struct termios termios_t;
-typedef struct __device_ISR_BH_ARG_TYPE device_isr_bh_arg_t;
+typedef struct __DEVICE_ISR_BH_ARG_TYPE device_isr_bh_arg_t;
 typedef struct __device_dev_t device_dev_t;
 typedef struct __device_ch_t device_ch_t;
 typedef struct __device_card_t device_card_t;
@@ -79,6 +78,25 @@ typedef struct cdev cdev_t;
 #define DEVICE_CHANNEL_MAX 4
 #define NUM_BH_MAX 8
 
+typedef struct __DEVICE_ISR_BH_ARG_TYPE dscc4_isr_bh_arg_t;
+
+ typedef enum __DEVICE_SERIAL_PORT_MODE_ENUM_TYPE{
+    ProtocolHDLC = 0,
+    ProtocolASYNC = 1,
+    ProtocolBISYNC = 2
+} device_sm_t;
+
+// typedef to preserve GSTAR value
+struct __DEVICE_ISR_BH_ARG_TYPE{
+    struct work_struct *work;        // work entry 
+    int idx;
+    int id;
+    device_dev_t *dev;
+    device_ch_t *ch;
+//    gstar_t tmp_gstar;
+//    gstar_t     gstar;
+ };
+ 
 struct __device_ch_t {
     struct cdev             *cdev;                   // char device structure
     device_dev_t            *dev;
@@ -86,7 +104,7 @@ struct __device_ch_t {
     int                     id;                     // channel ID
     int                     minor;                  // channel minor number
     char                    name[32];               // channel name
-    int                     ref_count;   
+    int                     ref_count; 
 };
 struct __device_dev_t {
     struct              list_head * entry;        // device list entry
@@ -97,6 +115,8 @@ struct __device_dev_t {
     char                    name[32];               // device name 
     struct pci_dev          *pcidev;                // kernel PCI deviceG
     device_card_t*          card;
+    int                     ch_num;                 // number of channels 
+    device_isr_bh_arg_t     bh[NUM_BH_MAX];
 };
 struct __device_card_t {
     device_dev_t*            dev[3];                         // number of controllers per card
@@ -109,6 +129,7 @@ struct __device_card_t {
     int                     board_number;                   // used for device name in INIT
     int                     previous_board_type;
     int                     do12_set[12];
+    device_isr_bh_arg_t     bh[NUM_BH_MAX];
 };
 
 

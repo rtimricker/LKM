@@ -22,6 +22,7 @@
 
 #include <linux/slab.h>     /* kmalloc */
 #include <linux/dma-mapping.h>
+#include <linux/interrupt.h>
 #include <linux/moduleparam.h>
 #include <linux/proc_fs.h>
 
@@ -29,6 +30,7 @@
 #include <linux/pci-acpi.h>
 #include <acpi/apei.h>
 #include <linux/aer.h>
+
 
 #include <linux/workqueue.h>
 #include <linux/cdev.h>
@@ -52,7 +54,7 @@ static int card_number = -1;
  *====================================================================*/
 LIST_HEAD(device_dev_list);
 static int device_dev_count = 0;      /* actual count */
-//static int device_ch_count = 0;       /* channel actual count */
+static int device_ch_count = 0;       /* channel actual count */
 
 #define SUCCESS 0
 #define BUF_LEN 80
@@ -78,15 +80,83 @@ static struct proc_dir_entry *proc_entry;
 static char *info = NULL;
 static int write_index = 0;
 static int read_index = 0;
-static int registered_driver = 0;
+static int registered_driver = 0; 
+
+/*======================================================================
+ * NAME:  device_isr_bh()
+ *
+ * DESCRIPTION:
+ *    This is the bottom-half ISR.
+ *
+ * ARGUMENTS:
+ *
+ * RETURN VALUE:
+ *
+ *====================================================================*/
+
+static void 
+device_isr_bh ( dscc4_isr_bh_arg_t* bh )
+ {
+  printk (KERN_INFO "Chardrv: device_isr_bh(%d, %d), BH (%p): %d, dev: (%p)\n", bh->dev->card->id, bh->dev->id, bh, bh->id, bh->dev);
+ } /* device_isr_bh */
+
+/*======================================================================
+ * NAME:  device_isr()
+ *
+ * DESCRIPTION:
+ *    This is the ISR.
+ *
+ * ARGUMENTS:
+ *
+ * RETURN VALUE:
+ *
+ *====================================================================*/
+
+static irqreturn_t 
+device_isr(
+          int irq,
+          device_dev_t *dev,
+          struct pt_regs  *regs)
+{
+  //queue_work(dev->wq, &dev->bh[dev->drv_isr_idx].work);
+  printk (KERN_INFO "Chardrv: device_isr(%d, %d), end\n", dev->card->id, dev->id);
+
+  //ISR_RETURN (IRQ_HANDLED);
+  return (IRQ_HANDLED);
+} /* device_isr */
+
 
 static int device_open(struct inode *inode, struct file *filep)
 {
-  printk(KERN_INFO "Chardrv: device_open(0x%p, 0x%p)\n", inode, filep);
+  //device_ch_t ch;
 
-  //filp->private_data = ch = container_of(inode->i_cdev, device_ch_t, cdev);
+  printk(KERN_INFO "Chardrv: device_open(%p, %p)\n", inode, filep);
+
+  //filep->private_data = ch = container_of(inode->i_cdev, device_ch_t, cdev);
   //filep->private_data = inode->i_cdev->dev;
   //filep->private_data = (void*)inode->i_cdev;
+#if 0
+  // ----------
+  /* do per controller initialization here */
+  /*
+  ** Request IRQ
+  ** Although device can still be used without interrupts
+  ** there is no code to handle them when hardware interrupt
+  ** are triggered. Fail open request in this case.
+  */
+ // DEVICE_NAME
+ strcpy(ch->dev->name, DEVICE_NAME);
+  if( (ch->open_result = request_irq ( ch->dev->pcidev->irq,
+                                        (void*)device_isr,
+                                        IRQF_SHARED,
+                                        ch->dev->name,
+                                        ch->dev)) ){
+
+    printk(KERN_ALERT "request_irq failed\n");
+    return -1;
+  }
+  // ----------
+#endif
 
   return SUCCESS;
 }
@@ -94,9 +164,9 @@ static int device_open(struct inode *inode, struct file *filep)
 static int device_release(struct inode *inodep, struct file *filep)
 {
   printk(KERN_INFO "Chardrv: device_release\n");
-#if 0  
-//  flush_workqueue(workQueue);   // Remove any work left in the work queue
-//  destroy_workqueue(workQueue);
+#if 1  
+//  flush_workqueue(ch->wq);   // Remove any work left in the work queue
+//  destroy_workqueue(ch->wq);
 #endif
   //mutex_unlock(&char_mutex);
   printk(KERN_INFO "Chardrv: Device successfully closed\n");
@@ -166,8 +236,8 @@ static void device_remove(struct pci_dev *pcidev)
     return;
   }
 
-  //PDEBUG ("list_del\n");
-  //list_del(&dev->entry);  // Remove device from the list.
+//  printk (KERN_INFO "Chardrv: list_del\n");
+//  list_del(dev->entry);  // Remove device from the list.
 
   for( idx = 0; idx < DEVICE_CHANNEL_MAX; idx++ ) {
     if( dev->ch[idx].cdev_init ) {
@@ -176,8 +246,9 @@ static void device_remove(struct pci_dev *pcidev)
   }
 
   // Clear all.
-  flush_workqueue(dev->wq);
-  destroy_workqueue(dev->wq);
+  printk (KERN_INFO "Chardrv: clear out workqueue\n");
+  //flush_workqueue(dev->wq);
+  //destroy_workqueue(dev->wq);
 
   //if( dev->mem ){
   //        device_iounmap(dev->mem);
@@ -572,9 +643,9 @@ static int device_probe(
   int idx = 0;
   int channel_number = 0;
   int total_ch_count = 0;
-  //int board_number = 0;
+  int board_number = 0;
   device_dev_t *dev = NULL;
-//        device_card_t *brd = NULL;
+  device_card_t *brd = NULL;
 
   printk(KERN_INFO "Chardrv: device_probe, pcidev: [%p], id: [%p]\n", pcidev, id);
   printk (KERN_INFO "Chardrv: pcidev: vendor [0x%x], device [0x%x], subsystem_vendor [0x%x], subsytem device [0x%x]\n",
@@ -598,32 +669,15 @@ static int device_probe(
     return res;
   }
 
-  printk (KERN_INFO "Chardrv: probe: dev: [0x%p], ID: [%d]\n", dev, dev->id);
+  printk (KERN_INFO "Chardrv: probe: dev: [%p], ID: [%d]\n", dev, dev->id);
   pci_set_drvdata(pcidev, dev);
 
   dev_array[device_dev_count] = dev;
   memset(dev, 0, sizeof(device_dev_t));
-  // Remember PCI device
-  dev->pcidev = pcidev;
+  dev->pcidev = pcidev; // Remember PCI device
 
-  // ----------
-  // struct workqueue_struct *alloc_workqueue(const char *fmt, unsigned int flags, int max_active, ...);
-  //sprintf(workqueue_name, "%s%d_wq", DEVICE_NAME , device_dev_count);   // later use device_dev_count 
-  sprintf(workqueue_name, "%s%d_wq", DEVICE_NAME , card_array[card_number]-1);
-  printk (KERN_INFO "Chardrv: create_workqueue: %s\n", workqueue_name);
-  if ( ! ( dev->wq = create_workqueue(workqueue_name))) {
-    printk(KERN_ALERT "Chardrv: create workqueue failed.\n");
-    res = -ENOMEM;
-    return res;
-  }
-
-  // ----------
   printk (KERN_INFO "=====>card_number %d, device number %d\n",card_number,card_array[card_number]-1);
-  // Remember PCI device
-  dev->pcidev = pcidev;
-  // ----------
   printk (KERN_INFO "Chardrv: ADDING TO LIST: %s\n", dev->name);
-//  printk (KERN_INFO "Chardrv: ADDING TO LIST %p\n", dev);
 
   for (idx = 0; idx < DEVICE_CHANNEL_MAX; idx++) {
     dev->ch[idx].minor = total_ch_count;
@@ -643,6 +697,28 @@ static int device_probe(
       return res;
     }
   }
+#if 1
+  // ----------
+  sprintf(workqueue_name, "%s%d_wq", DEVICE_NAME , device_dev_count);
+  printk (KERN_INFO "Chardrv: alloc_workqueue: %s\n", workqueue_name);
+  if ( ! (dev->wq = alloc_workqueue(workqueue_name, WQ_UNBOUND | WQ_MEM_RECLAIM, 1))) {
+    printk(KERN_ALERT "alloc_workqueue failed.\n");
+    res = -ENOMEM;
+    return res;
+  }
+  printk (KERN_INFO "Chardrv: work queue: [%p]\n", dev->wq);
+#endif
+  for( idx = 0; idx < NUM_BH_MAX; idx++) {
+    dev->bh[idx].dev = (void*)dev;
+    __init_work( dev->bh[idx].work, (void*)device_isr_bh );
+  // experimenting...
+  //queue_work(dev->wq, dev->bh[idx].work);
+  }
+
+
+//  init_waitqueue_head(&dev->iqcfg_q);
+//  dev->ch_num = 4;
+
   // ----------
 
   return 0;
@@ -754,8 +830,9 @@ static int __init device_init(void)
 {
   int res = 0;
   dev_t devno = 0;
+  int i = 0;
   //
-#if 0
+#if 1
   one=kmalloc(sizeof(struct k_list),GFP_KERNEL);
   printk(KERN_INFO "Chardrv: kmalloc: %p\n", one);
   one->temp=10;
@@ -870,8 +947,6 @@ static void __exit device_exit(void)
   printk (KERN_INFO "Chardrv: class_destroy [%p] [%p]\n", chardrvClass, chardrvClass);
 
 #if 1
-  // Following is initialized in pci probe?
-
   unregister_chrdev_region(MKDEV(majorNumber, 0), 1);
   printk (KERN_INFO "Chardrv: unregister_chrdev_region\n");
 #else
@@ -879,7 +954,7 @@ static void __exit device_exit(void)
   printk (KERN_INFO "Chardrv: unregister_chrdev \n");
 #endif
 
-#if 0
+#if 1
   if(one) {
     printk(KERN_INFO "Chardrv: Deleting one entry\n");
     list_del(&(one->test_list));
