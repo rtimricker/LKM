@@ -58,7 +58,7 @@ static int card_number = -1;
  *====================================================================*/
 LIST_HEAD(device_dev_list);
 static int device_dev_count = 0;      /* actual count */
-static int device_ch_count = 0;       /* channel actual count */
+//static int device_ch_count = 0;       /* channel actual count */
 
 #define SUCCESS 0
 #define BUF_LEN 80
@@ -654,9 +654,9 @@ static int device_probe(
   int idx = 0;
   int channel_number = 0;
   int total_ch_count = 0;
-  int board_number = 0;
+  //int board_number = 0;
   device_dev_t *dev = NULL;
-  device_card_t *brd = NULL;
+  //device_card_t *brd = NULL;
 
   printk(KERN_INFO "Chardrv: device_probe, pcidev: [%p], id: [%p]\n", pcidev, id);
   printk (KERN_INFO "Chardrv: pcidev: vendor [0x%x], device [0x%x], subsystem_vendor [0x%x], subsytem device [0x%x]\n",
@@ -838,13 +838,9 @@ work_handler(struct work_struct *work)
 } 
 
 // ----------
-//#if KOBJ
-/*
- * This module shows how to create a simple subdirectory in sysfs called
- * /sys/kernel/kobject-example  In that directory, 3 files are created:
- * "foo", "baz", and "bar".  If an integer is written to these files, it can be
- * later read out of it.
- */
+
+int sysfs_create_file(struct kobject * kobj, const struct attribute * attr);
+void sysfs_remove_file(struct kobject * kobj, const struct attribute * attr);
 
 static int foo;
 static int baz;
@@ -856,89 +852,74 @@ static int bar;
 static ssize_t foo_show(struct kobject *kobj, struct kobj_attribute *attr,
                         char *buf)
 {
-        return sprintf(buf, "%d\n", foo);
+  printk (KERN_INFO "Chardrv: foo_show");
+	return sysfs_emit(buf, "%d\n", foo);
 }
 
 static ssize_t foo_store(struct kobject *kobj, struct kobj_attribute *attr,
                          const char *buf, size_t count)
 {
-        sscanf(buf, "%du", &foo);
-        printk("foo_store called with: %d\n", foo);
-        return count;
+  int ret;
+  printk (KERN_INFO "Chardrv: foo_store");
+
+	ret = kstrtoint(buf, 10, &foo);
+	if (ret < 0)
+		return ret;
+
+	return count;
 }
 
-//#define __ATTR(_name, _mode, _show, _store) {				\
-//	.attr = {.name = __stringify(_name),				\
-//		 .mode = VERIFY_OCTAL_PERMISSIONS(_mode) },		\
-//	.show	= _show,						\
-//	.store	= _store,						\
-//}
-
-//static struct kobj_attribute foo_attribute =
-//        __ATTR(foo, 0666, foo_show, foo_store);
-static struct kobj_attribute foo_attribute = {.attr = {.name = __stringify(foo),
-                                                      .mode = 0666 },
-                                              .show = foo_show,
-                                              .store = foo_store,
-                                              };
+static struct kobj_attribute foo_attribute =
+	__ATTR(foo, 0664, foo_show, foo_store);
 
 /*
- * More complex function where we determine which varible is being accessed by
+ * More complex function where we determine which variable is being accessed by
  * looking at the attribute for the "baz" and "bar" files.
  */
 static ssize_t b_show(struct kobject *kobj, struct kobj_attribute *attr,
-                      char *buf)
+		      char *buf)
 {
-  int var;
+	int var;
+  printk (KERN_INFO "Chardrv: b_show");
 
-  if (strcmp(attr->attr.name, "baz") == 0) {
-    var = baz;
-  } else {
-    var = bar;
-  }
-  return sprintf(buf, "%d\n", var);
+	if (strcmp(attr->attr.name, "baz") == 0)
+		var = baz;
+	else
+		var = bar;
+	return sysfs_emit(buf, "%d\n", var);
 }
 
 static ssize_t b_store(struct kobject *kobj, struct kobj_attribute *attr,
-                       const char *buf, size_t count)
+		       const char *buf, size_t count)
 {
-  int var;
+	int var, ret;
+  printk (KERN_INFO "Chardrv: b_store");
 
-  sscanf(buf, "%du", &var);
-  if (strcmp(attr->attr.name, "baz") == 0) {
-    baz = var;
-    printk("baz_store called with: %d\n", baz);
-  } else {
-    bar = var;
-    printk("bar_store called with: %d\n", bar);
-  }
-  return count;
+	ret = kstrtoint(buf, 10, &var);
+	if (ret < 0)
+		return ret;
+
+	if (strcmp(attr->attr.name, "baz") == 0)
+		baz = var;
+	else
+		bar = var;
+	return count;
 }
 
-//static struct kobj_attribute baz_attribute =
-//        __ATTR(baz, 0666, b_show, b_store);
-//static struct kobj_attribute bar_attribute =
-//        __ATTR(bar, 0666, b_show, b_store);
-static struct kobj_attribute baz_attribute = {.attr = {.name = __stringify(baz),
-                                                        .mode = 0666 },
-                                              .show = b_show,
-                                              .store = b_store,
-                                              };
-static struct kobj_attribute bar_attribute = {.attr = {.name = __stringify(bar),
-                                                        .mode = 0666 },
-                                              .show = b_show,
-                                              .store = b_store,
-                                              };
+static struct kobj_attribute baz_attribute =
+	__ATTR(baz, 0664, b_show, b_store);
+static struct kobj_attribute bar_attribute =
+	__ATTR(bar, 0664, b_show, b_store);
 
 /*
- * Create a group of attributes so that we can create and destory them all
+ * Create a group of attributes so that we can create and destroy them all
  * at once.
  */
 static struct attribute *attrs[] = {
-        &foo_attribute.attr,
-        &baz_attribute.attr,
-        &bar_attribute.attr,
-        NULL,   /* need to NULL terminate the list of attributes */
+	&foo_attribute.attr,
+	&baz_attribute.attr,
+	&bar_attribute.attr,
+	NULL,	/* need to NULL terminate the list of attributes */
 };
 
 /*
@@ -948,11 +929,12 @@ static struct attribute *attrs[] = {
  * attribute group.
  */
 static struct attribute_group attr_group = {
-        .attrs = attrs,
+	.attrs = attrs,
 };
-//
+
 static struct kobject *example_kobj;
 
+//
 //#endif
 // ----------
 
@@ -965,33 +947,29 @@ static int __init device_init(void)
   int res = 0;
   dev_t devno = 0;
   int i = 0;
-  int error = 0;
+  int retval;
+  //int error = 0;
   //
 
   // ----------
-//#if KOBJ
-        int retval;
+	/*
+	 * Create a simple kobject with the name of "kobject_example",
+	 * located under /sys/kernel/
+	 *
+	 * As this is a simple directory, no uevent will be sent to
+	 * userspace.  That is why this function should not be used for
+	 * any type of dynamic kobjects, where the name and number are
+	 * not known ahead of time.
+	 */
+	example_kobj = kobject_create_and_add("kobject_example", kernel_kobj);
+	if (!example_kobj)
+		return -ENOMEM;
 
-        /*
-         * Create a simple kobject with the name of "kobject_example",
-         * located under /sys/kernel/
-         *
-         * As this is a simple directory, no uevent will be sent to
-         * userspace.  That is why this function should not be used for
-         * any type of dynamic kobjects, where the name and number are
-         * not known ahead of time.
-         */
-      example_kobj = kobject_create_and_add("kobject_example", kernel_kobj);
-      if (!example_kobj) {
-        return -ENOMEM;
-      }
-      printk (KERN_INFO "Chardrv: kobject_create_and_add \"kobject_example\"\n");
+	/* Create the files associated with this kobject */
+	retval = sysfs_create_group(example_kobj, &attr_group);
+	if (retval)
+		kobject_put(example_kobj);
 
-        /* Create the files associated with this kobject */
- //       retval = sysfs_create_group(example_kobj, &attr_group);
- //       if (retval)
- //               kobject_put(example_kobj);
-//#endif
   // ----------
 
   struct work_data * data;
@@ -1027,7 +1005,7 @@ static int __init device_init(void)
     majorNumber = MAJOR(devno);
   }
   if( res < 0 ) {
-    printk(KERN_ALERT "alloc_chrdev_region or register_chrdev_region failed.\n");
+    printk(KERN_ALERT "Chardrv: alloc_chrdev_region or register_chrdev_region failed.\n");
     return res;
   }
 
@@ -1099,10 +1077,7 @@ static void __exit device_exit(void)
   printk (KERN_INFO "Chardrv: device_exit\n");
 
 // ----------
-//#if KOBJ
-//  kobject_put(example_kobject);
     kobject_put(example_kobj);
-//#endif
 // ----------
 
   pci_unregister_driver(&device_pci_driver);
