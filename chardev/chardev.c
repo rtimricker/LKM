@@ -985,6 +985,7 @@ static int __init device_init(void)
       if (!example_kobj) {
         return -ENOMEM;
       }
+      printk (KERN_INFO "Chardrv: kobject_create_and_add \"kobject_example\"\n");
 
         /* Create the files associated with this kobject */
  //       retval = sysfs_create_group(example_kobj, &attr_group);
