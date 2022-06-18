@@ -86,15 +86,12 @@ typedef struct __DEVICE_ISR_BH_ARG_TYPE dscc4_isr_bh_arg_t;
     ProtocolBISYNC = 2
 } device_sm_t;
 
-// typedef to preserve GSTAR value
-struct __DEVICE_ISR_BH_ARG_TYPE{
+struct __DEVICE_ISR_BH_ARG_TYPE {
     struct work_struct *work;        // work entry 
     int idx;
     int id;
     device_dev_t *dev;
     device_ch_t *ch;
-//    gstar_t tmp_gstar;
-//    gstar_t     gstar;
  };
  
 struct __device_ch_t {

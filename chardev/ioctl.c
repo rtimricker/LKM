@@ -107,6 +107,7 @@ int main()
 	char msg[] = "--> Message passed by ioctl\n";
 	char fileName[100];
 	sprintf(fileName, "/dev/%s", DEVICE_NAME);
+        printf ("open: %s\n", fileName);
 	file_desc = open(fileName, O_RDWR);
 	if (file_desc < 0) {
 		printf("Can't open device file: /dev/%s\n", DEVICE_NAME);
