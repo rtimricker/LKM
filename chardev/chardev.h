@@ -59,14 +59,6 @@
 #include <linux/termios.h>
 
 #if 1
-//struct _cdev {
-//	struct kobject kobj;
-//	struct module *owner;
-//	const struct file_operations *ops;
-//	struct list_head list;
-//	dev_t dev;
-//	unsigned int count;
-//} __randomize_layout;
 
 typedef struct termios termios_t;
 typedef struct __DEVICE_ISR_BH_ARG_TYPE device_isr_bh_arg_t;
